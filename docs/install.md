@@ -11,6 +11,10 @@ $env:Path = "C:\Program Files\nodejs;" + $env:Path
 cd C:\Users\mecar\Documents\Projects\Recipes-manager
 ```
 
+Každá časť nižšie, ktorá spúšťa príkazy, začína vlastným `cd` s celou cestou
+(do `app` alebo `server`), takže ju môžeš spustiť aj v novom okne, len po
+riadku s `$env:Path` vyššie.
+
 Príkazy `eas` spúšťame cez `npx eas-cli@latest` (samotné `npx eas` nefunguje,
 balík sa volá `eas-cli`). Aby si to nemusel stále písať, v relácii môžeš
 použiť alias:
@@ -42,13 +46,13 @@ Development build je APK s vývojárskym klientom: aplikácia sa pripojí na
 nestačí, lebo používame natívne moduly (`expo-share-intent`).
 
 ```powershell
-cd app
+cd C:\Users\mecar\Documents\Projects\Recipes-manager\app
 npx eas-cli@latest login
 npx eas-cli@latest init
 ```
 
 `eas init` vytvorí projekt na expo.dev a zapíše `extra.eas.projectId` (a
-prípadne `owner`) do `app/app.json`. Túto zmenu commitni:
+prípadne `owner`) do `app/app.json`. Túto zmenu commitni (stále v `app`):
 
 ```powershell
 git add app.json
@@ -63,9 +67,9 @@ npx eas-cli@latest build --profile development --platform android
 
 Po dokončení (niekoľko minút, na bezplatnom pláne môže byť fronta) dostaneš
 odkaz a QR kód. Otvor ich na telefóne, stiahni APK a nainštaluj ho (povoľ
-inštaláciu z neznámych zdrojov, pozri krok 3).
+inštaláciu z neznámych zdrojov, pozri časť 3.3, bod 3).
 
-Lokálne nastavenie premenných:
+Lokálne nastavenie premenných (stále v `app`):
 
 ```powershell
 Copy-Item .env.example .env
@@ -95,6 +99,7 @@ hodnotu: **hodnotu nikdy nepíš priamo do príkazového riadka**, zostala by
 v histórii PowerShellu.
 
 ```powershell
+cd C:\Users\mecar\Documents\Projects\Recipes-manager\app
 npx eas-cli@latest env:create --environment preview
 ```
 
@@ -121,6 +126,7 @@ cez `npx eas-cli@latest`, ktoré berie vždy najnovšiu.)
 ### 3.3 Zostavenie a inštalácia
 
 ```powershell
+cd C:\Users\mecar\Documents\Projects\Recipes-manager\app
 npx eas-cli@latest build --profile preview --platform android
 ```
 
@@ -128,10 +134,13 @@ npx eas-cli@latest build --profile preview --platform android
    `recepty` v časti Builds) a stiahni `.apk`.
 2. Pošli ho mame (napr. cez Disk/e-mail) alebo ho stiahni priamo na jej
    telefóne cez odkaz/QR kód.
-3. Na mamino telefóne povoľ inštaláciu z neznámych zdrojov (K4): pri otvorení
-   APK Android ponúkne Nastavenia, kde povolíš inštaláciu pre aplikáciu, z
-   ktorej APK otváraš (Chrome, Súbory, Disk), napr. Nastavenia, Aplikácie,
-   Špeciálny prístup, Inštalovať neznáme aplikácie.
+3. Na mamino telefóne povoľ inštaláciu z neznámych zdrojov. Android
+   normálne inštaluje aplikácie len z Obchodu Google Play; APK stiahnuté
+   inde (Chrome, Súbory, Disk) najprv zablokuje a pri otvorení APK ponúkne
+   tlačidlo Nastavenia. Tam zapni povolenie pre tú aplikáciu, z ktorej APK
+   otváraš (napr. Chrome). Ručne to nájdeš v Nastavenia, Aplikácie,
+   Špeciálny prístup, Inštalovať neznáme aplikácie. Povolenie platí len pre
+   túto jednu aplikáciu a po inštalácii ho môžeš znova vypnúť.
 4. Nainštaluj aplikáciu Recepty a otvor ju.
 
 Ikona aplikácie je zatiaľ šablónová z Expo. Keď dodáš vlastnú ikonu, vymeň
@@ -141,8 +150,15 @@ nový build.
 ## 4. Aktualizácia aplikácie
 
 1. V `app/app.json` zvýš `version` (napr. `1.0.1`).
-2. Zostav znova: `npx eas-cli@latest build --profile preview --platform android`.
-3. APK nainštaluj cez starú aplikáciu (prepíše ju, odinštalovať netreba).
+2. Zostav znova:
+
+   ```powershell
+   cd C:\Users\mecar\Documents\Projects\Recipes-manager\app
+   npx eas-cli@latest build --profile preview --platform android
+   ```
+
+3. APK stiahni a nainštaluj ako v časti 3.3 cez starú aplikáciu (prepíše ju,
+   odinštalovať netreba).
 
 Mamine recepty zostanú zachované, kým sa nezmení balík `sk.recepty.mama`
 a podpisový kľúč. Kľúč spravuje EAS (uložený v projekte na expo.dev).
@@ -155,7 +171,7 @@ Pred každou aktualizáciou odporúčame urobiť v aplikácii export zálohy.
 1. Vygeneruj nový token a ulož ho ako secret Workera (pozri `server/README.md`):
 
    ```powershell
-   cd ..\server
+   cd C:\Users\mecar\Documents\Projects\Recipes-manager\server
    node -e "console.log(crypto.randomUUID()+crypto.randomUUID())"
    npx wrangler secret put APP_TOKEN
    ```
@@ -163,15 +179,15 @@ Pred každou aktualizáciou odporúčame urobiť v aplikácii export zálohy.
 2. Aktualizuj premennú v EAS (hodnotu opäť zadaj na výzvu, nie v príkaze):
 
    ```powershell
-   cd ..\app
+   cd C:\Users\mecar\Documents\Projects\Recipes-manager\app
    npx eas-cli@latest env:update --environment preview
    ```
 
    Ak `env:update` nevyhovuje, premennú zmaž (`env:delete`) a vytvor znova
    cez `env:create`.
-3. Zostav a nainštaluj nový APK (krok 4). Kým mama nemá novú verziu, import
-   z odkazov/screenshotov nepôjde (server starý token odmietne). Zvyšok
-   aplikácie funguje offline.
+3. Zostav a nainštaluj nový APK podľa časti 4 (Aktualizácia aplikácie).
+   Kým mama nemá novú verziu, import z odkazov/screenshotov nepôjde (server
+   starý token odmietne). Zvyšok aplikácie funguje offline.
 4. Aktualizuj aj `app/.env` pre vývoj.
 
 ## 6. Kontrolný zoznam testu s mamou
