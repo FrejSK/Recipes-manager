@@ -16,11 +16,16 @@ Zoznam všetkého, čo sa kvôli projektu Recepty nainštalovalo do počítača
 |---|---|---|
 | Vyrovnávacia pamäť npm (aj nástroje spúšťané cez `npx`) | `%LOCALAPPDATA%\npm-cache` | `Remove-Item -Recurse -Force "$env:LOCALAPPDATA\npm-cache"` |
 | Globálne nastavenia a balíky npm (ak vzniknú) | `%APPDATA%\npm` | `Remove-Item -Recurse -Force "$env:APPDATA\npm"` |
+| Prihlasovacia konfigurácia Cloudflare Wrangler (vznikne až po `wrangler login`) | `%USERPROFILE%\.wrangler` | `Remove-Item -Recurse -Force "$env:USERPROFILE\.wrangler"` |
+| Prihlasovacia konfigurácia Wrangler, XDG umiestnenie (vznikne až po `wrangler login`) | `%APPDATA%\xdg.config\.wrangler` | `Remove-Item -Recurse -Force "$env:APPDATA\xdg.config\.wrangler"` |
 
 ## Odstránenie všetkého naraz
 
 ```powershell
+# Najprv, kým je Node ešte nainštalovaný (v server/): npx wrangler delete
 winget uninstall --id OpenJS.NodeJS.LTS -e
 Remove-Item -Recurse -Force "$env:LOCALAPPDATA\npm-cache" -ErrorAction SilentlyContinue
 Remove-Item -Recurse -Force "$env:APPDATA\npm" -ErrorAction SilentlyContinue
+Remove-Item -Recurse -Force "$env:USERPROFILE\.wrangler" -ErrorAction SilentlyContinue
+Remove-Item -Recurse -Force "$env:APPDATA\xdg.config\.wrangler" -ErrorAction SilentlyContinue
 ```

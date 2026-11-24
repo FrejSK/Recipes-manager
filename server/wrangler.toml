@@ -8,4 +8,5 @@ DAILY_LIMIT = "50"
 
 [[kv_namespaces]]
 binding = "LIMITS"
+# Sem vlož id z `npx wrangler kv namespace create LIMITS` (postup: server/README.md)
 id = "TODO_KV_NAMESPACE_ID"
