@@ -4,13 +4,14 @@ import HomeScreen from '../app/index';
 import { DbContext, type Repos } from '../src/db/context';
 
 const mockPush = jest.fn();
-let mockFocusCb: (() => void | (() => void)) | null = null;
+// Every screen-level focus callback (HomeScreen + BackupBanner); callbacks are memoized so the Set dedups re-renders.
+const mockFocusCbs = new Set<() => void | (() => void)>();
 jest.mock('expo-router', () => {
   const React = require('react');
   return {
     useRouter: () => ({ push: mockPush }),
     useFocusEffect: (cb: () => void) => {
-      mockFocusCb = cb;
+      mockFocusCbs.add(cb);
       React.useEffect(cb, []);
     },
   };
@@ -93,6 +94,7 @@ describe('list screen', () => {
 
 describe('list screen refocus', () => {
   it('resets a category filter whose category was deleted', async () => {
+    mockFocusCbs.clear();
     let cats = [
       { id: '1', name: 'Polievky', sortOrder: 0 },
       { id: '2', name: 'Hlavné jedlá', sortOrder: 1 },
@@ -109,7 +111,7 @@ describe('list screen refocus', () => {
 
     cats = [cats[1]];
     await act(async () => {
-      mockFocusCb!();
+      mockFocusCbs.forEach((cb) => cb());
     });
     expect(screen.queryByText('Polievky')).toBeNull();
     expect(screen.getByText('Hovädzí guláš')).toBeTruthy();

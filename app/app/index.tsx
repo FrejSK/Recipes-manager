@@ -17,6 +17,7 @@ import { useRepos } from '../src/db/context';
 import type { Category } from '@recipes/core';
 import type { RecipeListItem } from '../src/db/recipes-repo';
 import { imageUri } from '../src/files/images';
+import { BackupBanner } from '../src/ui/BackupBanner';
 
 export default function HomeScreen() {
   const { recipes, categories } = useRepos();
@@ -63,6 +64,7 @@ export default function HomeScreen() {
           <Chip label="Upraviť" selected={false} onPress={() => router.push('/categories' as never)} />
         </ScrollView>
       </View>
+      <BackupBanner />
       <FlatList
         style={styles.list}
         data={visible}

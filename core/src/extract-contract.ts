@@ -9,7 +9,7 @@ const IngredientSchema = z.object({
   note: z.string().nullable(),
 });
 
-const IngredientGroupSchema = z.object({
+export const IngredientGroupSchema = z.object({
   name: z.string().nullable(),
   items: z.array(IngredientSchema),
 });

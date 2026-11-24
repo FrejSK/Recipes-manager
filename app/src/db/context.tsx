@@ -6,11 +6,14 @@ import { openExpoDb } from './expo-db';
 import { migrate } from './migrations';
 import { createRecipesRepo, type RecipesRepo } from './recipes-repo';
 import { createSettingsRepo, type SettingsRepo } from './settings-repo';
+import type { SqlDb } from './sql';
 
 export type Repos = {
   recipes: RecipesRepo;
   categories: CategoriesRepo;
   settings: SettingsRepo;
+  /** Raw connection, for callers that need a transaction spanning repos (backup restore). */
+  db: SqlDb;
 };
 
 export const DbContext = createContext<Repos | null>(null);
@@ -30,6 +33,7 @@ export function DbProvider({ children }: { children: ReactNode }) {
           recipes: createRecipesRepo(db, settings),
           categories: createCategoriesRepo(db),
           settings,
+          db,
         };
         if (!cancelled) setRepos(value);
       } catch {
