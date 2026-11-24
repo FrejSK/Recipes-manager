@@ -1,3 +1,4 @@
+import { decodeHTMLAttribute } from 'entities';
 import { decodeEntities } from './html-text';
 
 export type JsonLdRecipe = {
@@ -57,7 +58,7 @@ function collectSteps(v: Json, out: string[]): void {
 }
 
 function firstImage(v: Json): string | null {
-  if (typeof v === 'string') return clean(v) || null;
+  if (typeof v === 'string') return decodeHTMLAttribute(v.trim()) || null;
   if (Array.isArray(v)) {
     for (const x of v) {
       const u = firstImage(x);
@@ -134,7 +135,7 @@ export function findOgImage(html: string): string | null {
   for (const tag of html.match(/<meta\b[^>]*>/gi) ?? []) {
     if (!/\b(?:property|name)\s*=\s*["']og:image["']/i.test(tag)) continue;
     const c = /\bcontent\s*=\s*(?:"([^"]*)"|'([^']*)')/i.exec(tag);
-    const url = c ? decodeEntities(c[1] ?? c[2] ?? '').trim() : '';
+    const url = c ? decodeHTMLAttribute(c[1] ?? c[2] ?? '').trim() : '';
     if (url) return url;
   }
   return null;

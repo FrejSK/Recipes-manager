@@ -50,3 +50,14 @@ describe('jsonLdToText', () => {
     expect(t).toContain('1. ' + r.steps[0]);
   });
 });
+
+describe('URL decoding', () => {
+  it('og:image uses attribute-mode decoding', () => {
+    const html = '<meta property="og:image" content="https://x.sk/a.jpg?w=1&region=us&amp;sect=2">';
+    expect(findOgImage(html)).toBe('https://x.sk/a.jpg?w=1&region=us&sect=2');
+  });
+  it('JSON-LD image URL is not corrupted by legacy entities', () => {
+    const html = '<script type="application/ld+json">{"@type":"Recipe","name":"X","image":"https://x.sk/b.jpg?a=1&region=2"}</script>';
+    expect(findRecipeJsonLd(html)!.imageUrl).toBe('https://x.sk/b.jpg?a=1&region=2');
+  });
+});
