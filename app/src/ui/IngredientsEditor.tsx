@@ -1,6 +1,6 @@
 import { UNIT_CODES, UNITS, type UnitCode } from '@recipes/core';
 import { useState } from 'react';
-import { FlatList, Modal, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Alert, FlatList, Modal, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { newGroup, newIngredient, type FormGroup, type FormIngredient } from '../recipe/form-state';
 
@@ -21,6 +21,18 @@ export function IngredientsEditor({ groups, onChange }: Props) {
     const g = groups[gi];
     setGroup(gi, { ...g, items: g.items.filter((_, j) => j !== ii) });
   };
+  const removeGroup = (gi: number) => {
+    const remove = () => onChange(groups.filter((_, j) => j !== gi));
+    // An empty group goes at once; one with ingredients asks first, so one tap can't wipe them all.
+    if (groups[gi].items.length === 0) {
+      remove();
+      return;
+    }
+    Alert.alert('Zmazať skupinu', 'Zmazať skupinu aj so všetkými surovinami?', [
+      { text: 'Zrušiť', style: 'cancel' },
+      { text: 'Zmazať', style: 'destructive', onPress: remove },
+    ]);
+  };
 
   return (
     <View style={styles.list}>
@@ -37,7 +49,7 @@ export function IngredientsEditor({ groups, onChange }: Props) {
               accessibilityRole="button"
               accessibilityLabel="Zmazať skupinu"
               hitSlop={6}
-              onPress={() => onChange(groups.filter((_, j) => j !== gi))}
+              onPress={() => removeGroup(gi)}
             >
               <Text style={styles.danger}>Zmazať</Text>
             </Pressable>
