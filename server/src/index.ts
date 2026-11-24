@@ -1,4 +1,7 @@
-import { handleRequest, type Extractor } from './handler';
+import { createClaudeAI } from './ai';
+import { extract } from './extract';
+import { fetchPage } from './fetch-page';
+import { handleRequest } from './handler';
 import type { KVLike } from './rate-limit';
 
 export interface Env {
@@ -8,16 +11,14 @@ export interface Env {
   LIMITS: KVLike;
 }
 
-// Stub; replaced by the real extractor in Task 6.
-const extract: Extractor = async () => ({ ok: false, error: 'ai_failed' });
-
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
+    const ai = createClaudeAI(env.ANTHROPIC_API_KEY);
     return handleRequest(request, {
       appToken: env.APP_TOKEN,
       dailyLimit: Number.parseInt(env.DAILY_LIMIT, 10) || 50,
       kv: env.LIMITS,
-      extract,
+      extract: (req) => extract(req, { ai, fetchPage }),
       now: () => new Date(),
     });
   },
