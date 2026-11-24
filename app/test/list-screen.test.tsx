@@ -1,14 +1,16 @@
-import { fireEvent, render, screen } from '@testing-library/react-native';
+import { act, fireEvent, render, screen } from '@testing-library/react-native';
 
 import HomeScreen from '../app/index';
 import { DbContext, type Repos } from '../src/db/context';
 
 const mockPush = jest.fn();
+let mockFocusCb: (() => void | (() => void)) | null = null;
 jest.mock('expo-router', () => {
   const React = require('react');
   return {
     useRouter: () => ({ push: mockPush }),
     useFocusEffect: (cb: () => void) => {
+      mockFocusCb = cb;
       React.useEffect(cb, []);
     },
   };
@@ -86,5 +88,31 @@ describe('list screen', () => {
     await renderScreen(makeRepos(three));
     await fireEvent.press(await screen.findByText('Upraviť'));
     expect(mockPush).toHaveBeenCalledWith('/categories');
+  });
+});
+
+describe('list screen refocus', () => {
+  it('resets a category filter whose category was deleted', async () => {
+    let cats = [
+      { id: '1', name: 'Polievky', sortOrder: 0 },
+      { id: '2', name: 'Hlavné jedlá', sortOrder: 1 },
+    ];
+    const repos = {
+      recipes: { list: async () => three },
+      categories: { list: async () => cats },
+      settings: {},
+    } as unknown as Repos;
+    await renderScreen(repos);
+    await screen.findByText('Kapustnica');
+    await fireEvent.press(screen.getByText('Polievky'));
+    expect(screen.queryByText('Hovädzí guláš')).toBeNull();
+
+    cats = [cats[1]];
+    await act(async () => {
+      mockFocusCb!();
+    });
+    expect(screen.queryByText('Polievky')).toBeNull();
+    expect(screen.getByText('Hovädzí guláš')).toBeTruthy();
+    expect(screen.getByText('Kapustnica')).toBeTruthy();
   });
 });

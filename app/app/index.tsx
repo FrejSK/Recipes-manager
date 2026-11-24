@@ -34,6 +34,8 @@ export default function HomeScreen() {
         if (cancelled) return;
         setItems(r);
         setCats(c);
+        // Drop a filter whose category was deleted while we were away.
+        setCategoryId((cur) => (cur && !c.some((x) => x.id === cur) ? null : cur));
       })();
       return () => {
         cancelled = true;
