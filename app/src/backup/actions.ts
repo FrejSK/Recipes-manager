@@ -4,11 +4,10 @@ import * as Sharing from 'expo-sharing';
 import { Alert } from 'react-native';
 
 import type { Repos } from '../db/context';
+import { IMAGES_DIR } from '../files/images';
 import { buildBackupJson } from './format';
 import { applyRestore, type RestoreFileOps } from './restore';
 import { openBackupZip, writeBackupZip, type ByteSink, type ByteSource } from './zip';
-
-const IMAGES_DIR = 'images';
 
 function pad(n: number): string {
   return String(n).padStart(2, '0');
