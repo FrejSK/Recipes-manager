@@ -34,4 +34,15 @@ describe('scaling', () => {
   it('scales ranges', () => {
     expect(amt(ing(2, 'ks', 'x', 3), 2)).toBe('4–6 ks');
   });
+  it('rounds ties half up for every step', () => {
+    expect(amt(ing(0.7, 'kg'), 1 / 2)).toBe('0,4 kg');
+    expect(amt(ing(0.3, 'l'), 1 / 2)).toBe('0,2 l');
+    expect(amt(ing(0.5, 'dl'), 1 / 2)).toBe('0,3 dl');
+    expect(amt(ing(0.5, 'PL'), 1.25)).toBe('¾ PL');
+    expect(amt(ing(1, 'ks'), 1.25)).toBe('1½ ks');
+    expect(amt(ing(5, 'g'), 1.5)).toBe('8 g');
+    expect(amt(ing(50, 'g'), 1.1)).toBe('55 g');
+    expect(amt(ing(25, 'g'), 1.5)).toBe('40 g');
+    expect(amt(ing(100, 'g'), 1.05)).toBe('110 g');
+  });
 });

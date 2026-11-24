@@ -27,7 +27,7 @@ function roundingStep(value: number, unit: UnitCode | null): number {
 function scaleValue(value: number, unit: UnitCode | null, factor: number): number {
   const scaled = value * factor;
   const step = roundingStep(scaled, unit);
-  const rounded = Math.round(scaled / step) * step;
+  const rounded = Math.round(Number((scaled / step).toFixed(9))) * step;
   return clean(rounded === 0 && scaled !== 0 ? step : rounded);
 }
 
