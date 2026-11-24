@@ -8,7 +8,7 @@ Node.js nie je v PATH, preto v každom novom okne PowerShellu najprv:
 
 ```powershell
 $env:Path = "C:\Program Files\nodejs;" + $env:Path
-cd C:\Users\mecar\Documents\Projects\Recipes-manager\app
+cd C:\Users\mecar\Documents\Projects\Recipes-manager
 ```
 
 Príkazy `eas` spúšťame cez `npx eas-cli@latest` (samotné `npx eas` nefunguje,
