@@ -2,3 +2,8 @@ export * from './units';
 export * from './recipe';
 export * from './extract-contract';
 export * from './scale';
+export * from './search';
+export * from './share';
+export * from './categories';
+export * from './tiles';
+export * from './backup-reminder';
