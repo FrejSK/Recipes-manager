@@ -1,7 +1,7 @@
 import { formatIngredient, type Category, type Recipe } from '@recipes/core';
-import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
+import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useKeepAwake } from 'expo-keep-awake';
-import { useEffect, useState } from 'react';
+import { useCallback, useState } from 'react';
 import { Alert, Image, Linking, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { useRepos } from '../../src/db/context';
@@ -25,25 +25,28 @@ export default function RecipeDetail() {
   const [portions, setPortions] = useState(1);
   const [viewing, setViewing] = useState<string | null>(null);
 
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const [r, c] = await Promise.all([recipes.get(id), categories.list()]);
-        if (cancelled) return;
-        setRecipe(r);
-        setCats(c);
-        if (r?.servings) setPortions(r.servings);
-      } catch {
-        if (!cancelled) setRecipe(null);
-      } finally {
-        if (!cancelled) setLoaded(true);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [id, recipes, categories]);
+  // Reload on focus so changes made on the edit screen show up after router.back().
+  useFocusEffect(
+    useCallback(() => {
+      let cancelled = false;
+      (async () => {
+        try {
+          const [r, c] = await Promise.all([recipes.get(id), categories.list()]);
+          if (cancelled) return;
+          setRecipe(r);
+          setCats(c);
+          if (r?.servings) setPortions(r.servings);
+        } catch {
+          if (!cancelled) setRecipe(null);
+        } finally {
+          if (!cancelled) setLoaded(true);
+        }
+      })();
+      return () => {
+        cancelled = true;
+      };
+    }, [id, recipes, categories]),
+  );
 
   if (!loaded) return null;
   if (!recipe) return <Text style={styles.empty}>Recept sa nenašiel.</Text>;

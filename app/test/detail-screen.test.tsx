@@ -6,14 +6,20 @@ import { DbContext, type Repos } from '../src/db/context';
 
 const mockBack = jest.fn();
 const mockPush = jest.fn();
-jest.mock('expo-router', () => ({
-  useRouter: () => ({ push: mockPush, back: mockBack }),
-  useLocalSearchParams: () => ({ id: 'r1' }),
-  Stack: {
-    Screen: ({ options }: { options?: { headerRight?: () => unknown } }) =>
-      options?.headerRight ? options.headerRight() : null,
-  },
-}));
+jest.mock('expo-router', () => {
+  const React = require('react');
+  return {
+    useRouter: () => ({ push: mockPush, back: mockBack }),
+    useLocalSearchParams: () => ({ id: 'r1' }),
+    useFocusEffect: (cb: () => void) => {
+      React.useEffect(cb, [cb]);
+    },
+    Stack: {
+      Screen: ({ options }: { options?: { headerRight?: () => unknown } }) =>
+        options?.headerRight ? options.headerRight() : null,
+    },
+  };
+});
 jest.mock('expo-keep-awake', () => ({ useKeepAwake: jest.fn() }));
 const mockDelete = jest.fn(async (_p?: unknown) => {});
 jest.mock('../src/files/images', () => ({
