@@ -38,8 +38,7 @@ describe('shareToPending', () => {
   });
 
   it('short text with link and webUrl is url', () => {
-    expect(shareToPending({ text: 'Názov
-https://x.sk/r', webUrl: 'https://x.sk/r' })).toEqual({
+    expect(shareToPending({ text: 'Názov\nhttps://x.sk/r', webUrl: 'https://x.sk/r' })).toEqual({
       kind: 'url',
       url: 'https://x.sk/r',
     });
