@@ -6,8 +6,8 @@ import type { BackupFile } from './format';
 
 /** File-system side of a restore; injectable so the orchestration is testable without a device. */
 export type RestoreFileOps = {
-  /** Writes the backup's images into a temporary staging area. */
-  stageImages(images: Map<string, Uint8Array>): Promise<void>;
+  /** Streams the backup's images into a temporary staging area. */
+  stageImages(): Promise<void>;
   /** Removes the app's current images directory. */
   deleteCurrentImages(): Promise<void>;
   /** Moves staged images into the app's images directory. */
@@ -26,18 +26,15 @@ export type RestoreDeps = {
 };
 
 /**
+ * `file` is already validated (backup.json is read before any image is staged).
  * Data-safety ordering: stage images → swap DB in one transaction → only after commit replace images.
  * If staging or the DB swap fails, current recipes and images stay untouched.
  */
-export async function applyRestore(
-  file: BackupFile,
-  images: Map<string, Uint8Array>,
-  deps: RestoreDeps,
-): Promise<void> {
+export async function applyRestore(file: BackupFile, deps: RestoreDeps): Promise<void> {
   const { db, recipes, categories, settings, files } = deps;
   const now = deps.now ?? (() => new Date());
   try {
-    await files.stageImages(images);
+    await files.stageImages();
     await db.transaction(async () => {
       await categories.replaceAll(file.categories);
       await recipes.replaceAll(file.recipes);
