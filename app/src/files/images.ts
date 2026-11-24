@@ -12,7 +12,7 @@ export async function saveImage(uri: string): Promise<string> {
   if (/^https?:\/\//i.test(uri)) {
     await File.downloadFileAsync(uri, dest);
   } else {
-    new File(uri).copy(dest);
+    await new File(uri).copy(dest);
   }
   return rel;
 }

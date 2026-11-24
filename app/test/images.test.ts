@@ -25,7 +25,7 @@ jest.mock('expo-file-system', () => {
     get exists() {
       return mockExisting.has(this.uri);
     }
-    copy(dest: unknown) {
+    async copy(dest: unknown) {
       mockCopy(this.uri, dest);
     }
     delete() {
@@ -48,6 +48,13 @@ describe('images', () => {
     expect(mockCopy.mock.calls[0][0]).toBe('file:///tmp/a.jpg');
     expect(mockDownload).not.toHaveBeenCalled();
     expect(mockDirCreate).toHaveBeenCalled();
+  });
+
+  it('rejects when the copy fails', async () => {
+    mockCopy.mockImplementationOnce(() => {
+      throw new Error('copy failed');
+    });
+    await expect(saveImage('file:///tmp/a.jpg')).rejects.toThrow('copy failed');
   });
 
   it('downloads http(s) URLs', async () => {
