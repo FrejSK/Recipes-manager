@@ -90,19 +90,19 @@ použi bežné `'{"kind":"text","text":"","categories":[]}'`.)
 
 Zavolá skutočné Claude API, stojí približne jeden cent. Spúšťaj len vedome.
 
-Git Bash:
-
-```bash
-ANTHROPIC_API_KEY=... npx tsx scripts/smoke.ts
-```
-
-PowerShell:
+Kľúč patrí do súboru `server/.dev.vars` (ten istý, ktorý používa
+`npm run dev`, pozri Lokálny vývoj). Súbor je v `.gitignore`, takže sa
+nedostane do gitu. Vytvor ho v editore (napr. Poznámkový blok alebo VS Code),
+nie príkazom typu `echo`, a vlož do neho riadok `ANTHROPIC_API_KEY=` s
+tvojím kľúčom. Potom z `server/`:
 
 ```powershell
-$env:ANTHROPIC_API_KEY="..."; npx tsx scripts/smoke.ts
+npx tsx --env-file=.dev.vars scripts/smoke.ts
 ```
 
-(`...` nahraď svojím kľúčom, nikdy ho nezapisuj do súboru v repozitári.)
+Nikdy nevkladaj kľúče priamo do príkazu: príkazový riadok sa ukladá do
+histórie (PowerShell: `%APPDATA%\Microsoft\Windows\PowerShell\PSReadLine\ConsoleHost_history.txt`,
+Git Bash: `~/.bash_history`) v čistom texte.
 
 ## Výmena tajomstiev
 
