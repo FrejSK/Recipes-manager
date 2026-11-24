@@ -1,0 +1,8 @@
+{
+  "name": "recipes-manager",
+  "private": true,
+  "workspaces": ["core", "server", "app"],
+  "scripts": {
+    "test": "npm run test --workspaces --if-present"
+  }
+}
