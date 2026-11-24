@@ -51,7 +51,7 @@ npx eas-cli@latest init
 prípadne `owner`) do `app/app.json`. Túto zmenu commitni:
 
 ```powershell
-git add app/app.json
+git add app.json
 git commit -m "chore(app): add EAS projectId"
 ```
 
