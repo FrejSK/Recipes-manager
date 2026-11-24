@@ -1,0 +1,11 @@
+name = "recepty-extract"
+main = "src/index.ts"
+compatibility_date = "2025-01-01"
+compatibility_flags = ["nodejs_compat"]
+
+[vars]
+DAILY_LIMIT = "50"
+
+[[kv_namespaces]]
+binding = "LIMITS"
+id = "TODO_KV_NAMESPACE_ID"
