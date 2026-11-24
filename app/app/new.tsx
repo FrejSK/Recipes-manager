@@ -30,7 +30,7 @@ export default function NewRecipe() {
 
   const onSave = async (d: RecipeDraft) => {
     const recipe = await saveDraft(d, null, { recipes, saveImage, deleteImages });
-    router.replace(`/recipe/${recipe.id}` as never);
+    router.replace(`/recipe/${recipe.id}`);
   };
 
   return (

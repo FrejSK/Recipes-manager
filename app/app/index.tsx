@@ -70,7 +70,7 @@ export default function HomeScreen() {
           ) : undefined
         }
         renderItem={({ item }) => (
-          <Pressable style={styles.row} onPress={() => router.push(`/recipe/${item.id}` as never)}>
+          <Pressable style={styles.row} onPress={() => router.push(`/recipe/${item.id}`)}>
             {item.photo ? (
               <Image source={{ uri: imageUri(item.photo) }} style={styles.photo} />
             ) : (
@@ -80,7 +80,7 @@ export default function HomeScreen() {
           </Pressable>
         )}
       />
-      <Pressable style={styles.add} onPress={() => router.push('/add' as never)}>
+      <Pressable style={styles.add} onPress={() => router.push('/add')}>
         <Text style={styles.addText}>Pridať recept</Text>
       </Pressable>
     </SafeAreaView>

@@ -68,7 +68,7 @@ export default function RecipeDetail() {
 
   const headerRight = () => (
     <View style={styles.headerActions}>
-      <Pressable onPress={() => router.push(`/recipe/${id}/edit` as never)}>
+      <Pressable onPress={() => router.push(`/recipe/${id}/edit`)}>
         <Text style={styles.headerText}>Upraviť</Text>
       </Pressable>
       <Pressable onPress={confirmDelete}>
