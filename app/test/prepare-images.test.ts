@@ -85,6 +85,22 @@ describe('prepareImages', () => {
     mockSaves.forEach((s) => expect(s).toEqual({ format: 'jpeg', compress: 0.8, base64: true }));
   });
 
+  it('throws too_many_images before encoding anything when all images need more than 20 tiles', async () => {
+    mockSizes['file:///long.png'] = { width: 1000, height: 6000 }; // 3 tiles each
+    const uris = Array.from({ length: 7 }, () => 'file:///long.png'); // 21 tiles
+    await expect(prepareImages(uris)).rejects.toThrow('too_many_images');
+    expect(cropCalls()).toHaveLength(0);
+    expect(mockSaves).toHaveLength(0);
+  });
+
+  it('accepts exactly 20 tiles in total', async () => {
+    mockSizes['file:///long.png'] = { width: 1000, height: 6000 }; // 3 tiles each
+    mockSizes['file:///small.png'] = { width: 800, height: 600 }; // 1 tile
+    const uris = [...Array.from({ length: 6 }, () => 'file:///long.png'), 'file:///small.png', 'file:///small.png'];
+    const out = await prepareImages(uris);
+    expect(out).toHaveLength(20);
+  });
+
   it('throws image_too_long for an extremely long image', async () => {
     mockSizes['file:///scroll.png'] = { width: 100, height: 100000 };
     await expect(prepareImages(['file:///scroll.png'])).rejects.toThrow('image_too_long');

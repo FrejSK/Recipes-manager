@@ -120,6 +120,7 @@ describe('errorMessage', () => {
       'Dnes sa už načítalo veľa receptov. Skús to zajtra alebo recept vyplň ručne.',
     );
     expect(errorMessage('image_too_long')).toBe('Obrázok je príliš dlhý. Rozdeľ ho na viac screenshotov.');
+    expect(errorMessage('too_many_images')).toBe('Priveľa obrázkov naraz. Vyber menej screenshotov.');
     const generic = 'Recept sa nepodarilo prečítať. Skús to znova alebo ho vyplň ručne.';
     expect(errorMessage('ai_failed')).toBe(generic);
     expect(errorMessage('unauthorized')).toBe(generic);

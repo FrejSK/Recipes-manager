@@ -6,7 +6,7 @@ import {
   type ExtractResponse,
 } from '@recipes/core';
 
-export type ClientErrorCode = ExtractErrorCode | 'network' | 'timeout' | 'image_too_long';
+export type ClientErrorCode = ExtractErrorCode | 'network' | 'timeout' | 'image_too_long' | 'too_many_images';
 
 export type ExtractResult = { ok: true; data: ExtractResponse } | { ok: false; error: ClientErrorCode };
 

@@ -16,6 +16,8 @@ export function errorMessage(code: ClientErrorCode): string {
       return 'Dnes sa už načítalo veľa receptov. Skús to zajtra alebo recept vyplň ručne.';
     case 'image_too_long':
       return 'Obrázok je príliš dlhý. Rozdeľ ho na viac screenshotov.';
+    case 'too_many_images':
+      return 'Priveľa obrázkov naraz. Vyber menej screenshotov.';
     default:
       return GENERIC;
   }

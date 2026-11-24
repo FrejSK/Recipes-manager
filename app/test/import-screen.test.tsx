@@ -130,6 +130,14 @@ describe('import screen', () => {
     ]);
   });
 
+  it('shows too_many_images without calling the server', async () => {
+    setPendingImport({ kind: 'images', uris: ['file:///a.jpg', 'file:///b.jpg'] });
+    mockPrepare.mockRejectedValue(new Error('too_many_images'));
+    await renderScreen();
+    expect(await screen.findByText('Priveľa obrázkov naraz. Vyber menej screenshotov.')).toBeTruthy();
+    expect(mockExtract).not.toHaveBeenCalled();
+  });
+
   it('maps any other prepareImages failure to the generic message', async () => {
     setPendingImport({ kind: 'images', uris: ['file:///a.jpg'] });
     mockPrepare.mockRejectedValue(new Error('decode failed'));

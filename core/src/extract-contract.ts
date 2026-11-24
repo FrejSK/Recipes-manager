@@ -28,13 +28,16 @@ export type ExtractedRecipe = z.infer<typeof ExtractedRecipeSchema>;
 
 const categories = z.array(z.string());
 
+/** Most images (tiles) one extract request may carry. */
+export const MAX_EXTRACT_IMAGES = 20;
+
 export const ExtractRequestSchema = z.discriminatedUnion('kind', [
   z.object({
     kind: z.literal('images'),
     images: z
       .array(z.object({ mediaType: z.enum(['image/jpeg', 'image/png', 'image/webp']), data: z.string() }))
       .min(1)
-      .max(20),
+      .max(MAX_EXTRACT_IMAGES),
     categories,
   }),
   z.object({ kind: z.literal('text'), text: z.string().min(1).max(100000), categories }),

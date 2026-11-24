@@ -22,8 +22,13 @@ async function buildRequest(
     const images = await prepareImages(input.uris);
     return { ok: true, req: { kind: 'images', images, categories } };
   } catch (e) {
-    return { ok: false, error: e instanceof Error && e.message === 'image_too_long' ? 'image_too_long' : 'ai_failed' };
+    return { ok: false, error: imageErrorCode(e) };
   }
+}
+
+function imageErrorCode(e: unknown): ClientErrorCode {
+  if (e instanceof Error && (e.message === 'image_too_long' || e.message === 'too_many_images')) return e.message;
+  return 'ai_failed';
 }
 
 function manualDraft(input: PendingImport): RecipeDraft {
