@@ -37,7 +37,19 @@
       ],
       "expo-sqlite",
       "expo-sharing",
-      "expo-share-intent"
+      [
+        "expo-share-intent",
+        {
+          "androidIntentFilters": ["text/*", "image/*"],
+          "androidMultiIntentFilters": ["image/*"],
+          "iosActivationRules": {
+            "NSExtensionActivationSupportsText": true,
+            "NSExtensionActivationSupportsWebURLWithMaxCount": 1,
+            "NSExtensionActivationSupportsWebPageWithMaxCount": 1,
+            "NSExtensionActivationSupportsImageWithMaxCount": 10
+          }
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,
