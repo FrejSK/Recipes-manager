@@ -58,6 +58,7 @@ export default function HomeScreen() {
           {cats.map((c) => (
             <Chip key={c.id} label={c.name} selected={categoryId === c.id} onPress={() => setCategoryId(c.id)} />
           ))}
+          <Chip label="Upraviť" selected={false} onPress={() => router.push('/categories' as never)} />
         </ScrollView>
       </View>
       <FlatList

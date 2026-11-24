@@ -81,4 +81,10 @@ describe('list screen', () => {
     await fireEvent.press(screen.getByText('Pridať recept'));
     expect(mockPush).toHaveBeenCalledWith('/add');
   });
+
+  it('navigates to categories via the Upraviť chip', async () => {
+    await renderScreen(makeRepos(three));
+    await fireEvent.press(await screen.findByText('Upraviť'));
+    expect(mockPush).toHaveBeenCalledWith('/categories');
+  });
 });

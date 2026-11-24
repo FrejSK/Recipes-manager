@@ -41,6 +41,8 @@ export default function RootLayout() {
     <DbProvider>
       <Stack>
         <Stack.Screen name="index" options={{ title: 'Recepty', headerRight: () => <SettingsButton /> }} />
+        <Stack.Screen name="settings" options={{ title: 'Nastavenia' }} />
+        <Stack.Screen name="categories" options={{ title: 'Kategórie' }} />
       </Stack>
     </DbProvider>
   );
