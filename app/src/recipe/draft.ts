@@ -62,6 +62,8 @@ export function recipeToDraft(r: Recipe): RecipeDraft {
   const { id: _id, createdAt: _c, updatedAt: _u, photo, sourceImages, ...rest } = r;
   return {
     ...rest,
+    // Same fallback as emptyDraft/extractedToDraft, so "Pridať surovinu" has a group to add into.
+    ingredientGroups: rest.ingredientGroups.length > 0 ? rest.ingredientGroups : [{ name: null, items: [] }],
     photo: photo ? { kind: 'stored', path: photo } : null,
     sourceImages: sourceImages.map((path) => ({ kind: 'stored', path })),
   };

@@ -84,6 +84,20 @@ describe('emptyDraft / recipeToDraft / validateDraft', () => {
     expect(d).not.toHaveProperty('id');
   });
 
+  it('gives a recipe without ingredient groups one empty group to edit', () => {
+    const r: Recipe = {
+      ...emptyDraft(),
+      ingredientGroups: [],
+      title: 'X',
+      id: 'r1',
+      createdAt: '',
+      updatedAt: '',
+      photo: null,
+      sourceImages: [],
+    };
+    expect(recipeToDraft(r).ingredientGroups).toEqual([{ name: null, items: [] }]);
+  });
+
   it('requires a title', () => {
     expect(validateDraft({ ...emptyDraft(), title: '   ' })).toBe('Recept musí mať názov.');
     expect(validateDraft({ ...emptyDraft(), title: 'Guláš' })).toBeNull();
