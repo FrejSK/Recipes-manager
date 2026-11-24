@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import { handleRequest } from '../src/handler';
 import type { KVLike } from '../src/rate-limit';
 import type { Extractor } from '../src/handler';
@@ -37,6 +37,7 @@ function setup(extract: Extractor = async () => ({ ok: true, data }), dailyLimit
 }
 
 describe('handleRequest', () => {
+  afterEach(() => vi.restoreAllMocks());
   it('401 without header', async () => {
     const { deps } = setup();
     const r = await handleRequest(req({ token: null }), deps);
@@ -71,6 +72,17 @@ describe('handleRequest', () => {
     const r = await handleRequest(req(), setup(async () => { throw new Error('boom'); }).deps);
     expect(r.status).toBe(502);
     expect(await r.json()).toEqual({ error: 'ai_failed' });
+  });
+  it('logs only the error class and status when the extractor throws', async () => {
+    const log = vi.spyOn(console, 'error').mockImplementation(() => {});
+    class FetchError extends Error {
+      status = 503;
+    }
+    await handleRequest(req({ body: { kind: 'text', text: 'tajný recept', categories: [] } }), setup(async () => {
+      throw new FetchError('upstream said: tajný recept Bearer secret');
+    }).deps);
+    expect(log).toHaveBeenCalledWith('extract_failed', { error: 'FetchError', status: 503 });
+    expect(JSON.stringify(log.mock.calls)).not.toMatch(/tajný|secret/);
   });
   it('rate limits at the third call and resets next day', async () => {
     const { deps, advanceDay } = setup(undefined, 2);

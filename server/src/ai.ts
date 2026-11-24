@@ -3,6 +3,7 @@ import { zodOutputFormat } from '@anthropic-ai/sdk/helpers/zod';
 import type { Base64ImageSource, ContentBlockParam, MessageParam } from '@anthropic-ai/sdk/resources/messages';
 import { ExtractedRecipeSchema, type ExtractedRecipe } from '@recipes/core';
 import { z } from 'zod';
+import { errorInfo } from './log';
 import { SYSTEM_PROMPT, imagesInstruction, textInstruction } from './prompt';
 
 export type AiInput =
@@ -63,11 +64,16 @@ export function createClaudeAI(apiKey: string, client?: ParseClient): RecipeAI {
           messages: [{ role: 'user', content: userContent(input, categories) }],
           output_config: { effort: 'low', format: outputFormat },
         });
-        if (res.stop_reason === 'refusal' || !res.parsed_output) return { ok: false, error: 'ai_failed' };
+        if (res.stop_reason === 'refusal' || !res.parsed_output) {
+          // Visible in `wrangler tail`; stop_reason only, never the output.
+          console.error('ai_failed', { stop_reason: res.stop_reason });
+          return { ok: false, error: 'ai_failed' };
+        }
         const { isRecipe, ...recipe } = res.parsed_output;
         if (!isRecipe) return { ok: false, error: 'not_a_recipe' };
         return { ok: true, recipe };
-      } catch {
+      } catch (e) {
+        console.error('ai_failed', errorInfo(e));
         return { ok: false, error: 'ai_failed' };
       }
     },

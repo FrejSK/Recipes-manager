@@ -5,6 +5,7 @@ import {
   type ExtractRequest,
   type ExtractResponse,
 } from '@recipes/core';
+import { errorInfo } from './log';
 import { checkAndCount, type KVLike } from './rate-limit';
 
 export type ExtractResult = { ok: true; data: ExtractResponse } | { ok: false; error: ExtractErrorCode };
@@ -48,7 +49,8 @@ export async function handleRequest(request: Request, deps: HandlerDeps): Promis
   try {
     const result = await deps.extract(parsed.data);
     return result.ok ? json(result.data) : errorResponse(result.error);
-  } catch {
+  } catch (e) {
+    console.error('extract_failed', errorInfo(e));
     return errorResponse('ai_failed');
   }
 }

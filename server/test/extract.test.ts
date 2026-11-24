@@ -2,8 +2,8 @@ import { readFileSync } from 'node:fs';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { ExtractedRecipe } from '@recipes/core';
 import { createClaudeAI, type AiInput, type ParseClient, type RecipeAI } from '../src/ai';
-import { extract } from '../src/extract';
-import { fetchPage } from '../src/fetch-page';
+import { extract, resolvePhotoUrl } from '../src/extract';
+import { fetchPage, MAX_PAGE_BYTES } from '../src/fetch-page';
 import { htmlToText } from '../src/html-text';
 import { SYSTEM_PROMPT } from '../src/prompt';
 
@@ -331,5 +331,113 @@ describe('fetchPage', () => {
       throw new DOMException('timed out', 'TimeoutError');
     });
     expect(await fetchPage('https://example.com/r')).toEqual({ ok: false });
+  });
+});
+
+describe('fetchPage size cap', () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  /** A streamed HTML response of `chunks` chunks of `size` bytes; records how many chunks were pulled. */
+  function streamed(chunks: number, size: number) {
+    const state = { pulled: 0, cancelled: false };
+    const body = new ReadableStream<Uint8Array>({
+      pull(controller) {
+        if (state.pulled >= chunks) return controller.close();
+        state.pulled++;
+        controller.enqueue(new Uint8Array(size).fill(0x61)); // 'a'
+      },
+      cancel() {
+        state.cancelled = true;
+      },
+    });
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(body, { headers: { 'content-type': 'text/html' } })));
+    return state;
+  }
+
+  it('reads a page up to 3 MB', async () => {
+    streamed(3, 1024 * 1024);
+    const r = await fetchPage('https://example.com/r');
+    expect(r.ok && r.html.length).toBe(MAX_PAGE_BYTES);
+  });
+
+  it('a page over 3 MB → ok:false, and reading stops at the cap', async () => {
+    const state = streamed(1000, 1024 * 1024); // would be ~1 GB
+    expect(await fetchPage('https://example.com/r')).toEqual({ ok: false });
+    expect(state.pulled).toBeLessThan(10);
+    expect(state.cancelled).toBe(true);
+  });
+
+  it('decodes multi-byte UTF-8 split across chunks', async () => {
+    const bytes = new TextEncoder().encode('<p>Halušky s bryndzou</p>');
+    const body = new ReadableStream<Uint8Array>({
+      start(c) {
+        for (const b of bytes) c.enqueue(new Uint8Array([b]));
+        c.close();
+      },
+    });
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(body, { headers: { 'content-type': 'text/html' } })));
+    expect(await fetchPage('https://example.com/r')).toEqual({ ok: true, html: '<p>Halušky s bryndzou</p>' });
+  });
+});
+
+describe('photo URL resolution', () => {
+  it('resolves relative and protocol-relative URLs against the page URL, keeps only http(s)', () => {
+    const page = 'https://www.example.sk/recepty/halusky?x=1';
+    expect(resolvePhotoUrl('//cdn.example.sk/a.jpg', page)).toBe('https://cdn.example.sk/a.jpg');
+    expect(resolvePhotoUrl('/img/a.jpg', page)).toBe('https://www.example.sk/img/a.jpg');
+    expect(resolvePhotoUrl('img/a.jpg', page)).toBe('https://www.example.sk/recepty/img/a.jpg');
+    expect(resolvePhotoUrl('http://x.sk/a.jpg', page)).toBe('http://x.sk/a.jpg');
+    expect(resolvePhotoUrl('data:image/png;base64,AAA', page)).toBeNull();
+    expect(resolvePhotoUrl('javascript:alert(1)', page)).toBeNull();
+    expect(resolvePhotoUrl(null, page)).toBeNull();
+    expect(resolvePhotoUrl('', page)).toBeNull();
+  });
+
+  it('applies to JSON-LD image and og:image', async () => {
+    const { ai } = fakeAI();
+    const url = 'https://www.example.sk/recepty/halusky';
+    const jsonLdHtml = `<script type="application/ld+json">${JSON.stringify({
+      '@type': 'Recipe',
+      name: 'Halušky',
+      image: '//cdn.example.sk/halusky.jpg',
+      recipeIngredient: ['1 kg zemiakov'],
+      recipeInstructions: ['Nastrúhame.'],
+    })}</script>`;
+    const a = await extract({ kind: 'url', url, categories }, { ai, fetchPage: fakeFetch({ ok: true, html: jsonLdHtml }).fn });
+    expect(a.ok && a.data.photoUrl).toBe('https://cdn.example.sk/halusky.jpg');
+
+    const ogHtml = `<html><head><meta property="og:image" content="/foto/halusky.jpg"></head><body><p>${'Halušky s bryndzou. '.repeat(20)}</p></body></html>`;
+    const b = await extract({ kind: 'url', url, categories }, { ai, fetchPage: fakeFetch({ ok: true, html: ogHtml }).fn });
+    expect(b.ok && b.data.photoUrl).toBe('https://www.example.sk/foto/halusky.jpg');
+
+    // A JSON-LD image that is not http(s) falls back to og:image.
+    const badLd = jsonLdHtml.replace('//cdn.example.sk/halusky.jpg', 'data:image/png;base64,AAA') +
+      '<meta property="og:image" content="/foto/og.jpg">';
+    const c = await extract({ kind: 'url', url, categories }, { ai, fetchPage: fakeFetch({ ok: true, html: badLd }).fn });
+    expect(c.ok && c.data.photoUrl).toBe('https://www.example.sk/foto/og.jpg');
+  });
+});
+
+describe('createClaudeAI logging', () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  it('logs the error class and HTTP status of an SDK failure, nothing else', async () => {
+    const log = vi.spyOn(console, 'error').mockImplementation(() => {});
+    class RateLimitError extends Error {
+      status = 429;
+    }
+    const { client } = fakeClient(async () => {
+      throw new RateLimitError('429 {"error":"rate limited"} key sk-ant-secret');
+    });
+    await createClaudeAI('sk-ant-secret', client).extract({ kind: 'text', text: 'tajný recept' }, []);
+    expect(log).toHaveBeenCalledWith('ai_failed', { error: 'RateLimitError', status: 429 });
+    expect(JSON.stringify(log.mock.calls)).not.toMatch(/secret|tajný/);
+  });
+
+  it('logs stop_reason when there is no usable output', async () => {
+    const log = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const { client } = fakeClient(async () => ({ stop_reason: 'max_tokens', parsed_output: null }));
+    await createClaudeAI('key', client).extract({ kind: 'text', text: 'x' }, []);
+    expect(log).toHaveBeenCalledWith('ai_failed', { stop_reason: 'max_tokens' });
   });
 });

@@ -1,6 +1,6 @@
 /// <reference types="node" />
 // Paid smoke test against the real Claude API (about a cent per run). Ask before running.
-// Usage (from server/): ANTHROPIC_API_KEY=... npx tsx scripts/smoke.ts
+// Usage (from server/, key in .dev.vars, never on the command line): npx tsx --env-file=.dev.vars scripts/smoke.ts
 // Expect in the output: soľ "½ lyžičky" → amount 0.5, unit "CL"; cesnak → amount 2, amountMax 3,
 // unit "strucik"; "soľ podľa chuti" → amount null.
 import { createClaudeAI } from '../src/ai';

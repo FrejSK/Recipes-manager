@@ -104,6 +104,27 @@ Nikdy nevkladaj kľúče priamo do príkazu: príkazový riadok sa ukladá do
 histórie (PowerShell: `%APPDATA%\Microsoft\Windows\PowerShell\PSReadLine\ConsoleHost_history.txt`,
 Git Bash: `~/.bash_history`) v čistom texte.
 
+## Sledovanie (logy a CPU)
+
+Keď skúšaš import v aplikácii, nechaj v druhom okne PowerShellu (v `server/`)
+bežať živý výpis logov Workera:
+
+```powershell
+npx wrangler tail
+```
+
+Pri chybe tam uvidíš riadok `ai_failed` alebo `extract_failed` s typom chyby,
+HTTP stavom a pri AI aj `stop_reason`. Obsah receptov, tokeny ani kľúče sa
+nelogujú. Výpis ukončíš klávesmi Ctrl+C.
+
+V dashboarde Cloudflare (Workers & Pages, `recepty-extract`, Metrics) si
+občas pozri CPU time na požiadavku. Bezplatný plán má na jednu požiadavku
+nízky limit CPU času (čakanie na Claude API sa doňho nepočíta, spracovanie
+veľkej stránky áno). Ak importy zlyhávajú a v `wrangler tail` sa objavujú
+chyby, ktoré spomínajú CPU alebo prekročené limity (napr. „exceeded CPU“,
+„Exceeded resources“), prepni Worker na plán Workers Paid (približne 5 $
+mesačne) v dashboarde v časti Workers & Pages, Plans.
+
 ## Výmena tajomstiev
 
 - `APP_TOKEN`: vygeneruj nový (krok 4), spusti `npx wrangler secret put APP_TOKEN`
