@@ -17,7 +17,8 @@ function toUri(path: string): string {
 export function shareToPending(intent: SharedIntentInput): PendingImport | null {
   const images = (intent.files ?? []).filter((f) => f.mimeType?.startsWith('image/') && f.path);
   if (images.length > 0) return { kind: 'images', uris: images.map((f) => toUri(f.path)) };
-  if (intent.webUrl) return { kind: 'url', url: intent.webUrl };
+  // The library sets webUrl to the first link in any text, so text wins and classifySharedText decides.
   if (intent.text?.trim()) return classifySharedText(intent.text);
+  if (intent.webUrl) return { kind: 'url', url: intent.webUrl };
   return null;
 }

@@ -32,6 +32,19 @@ describe('shareToPending', () => {
     expect(shareToPending({ text })).toEqual({ kind: 'text', text });
   });
 
+  it('long text with a link stays text even when webUrl is set', () => {
+    const text = 'Ingrediencie a postup. '.repeat(30) + ' https://x.sk/r';
+    expect(shareToPending({ text, webUrl: 'https://x.sk/r' })).toEqual({ kind: 'text', text });
+  });
+
+  it('short text with link and webUrl is url', () => {
+    expect(shareToPending({ text: 'Názov
+https://x.sk/r', webUrl: 'https://x.sk/r' })).toEqual({
+      kind: 'url',
+      url: 'https://x.sk/r',
+    });
+  });
+
   it('returns null for a pdf without text', () => {
     expect(shareToPending({ files: [{ path: 'file:///a.pdf', mimeType: 'application/pdf' }], text: null })).toBeNull();
   });
