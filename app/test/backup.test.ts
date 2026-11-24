@@ -278,6 +278,29 @@ describe('parseBackupJson', () => {
     expect(() => parseBackupJson(bad({ ingredientGroups: [{ name: null, items: [{}] }] }))).toThrow(
       FORMAT_MSG,
     );
+    expect(() => parseBackupJson(bad({ photo: 'images/a.png' }))).toThrow(FORMAT_MSG);
+    expect(() => parseBackupJson(bad({ photo: 'images/a b.jpg' }))).toThrow(FORMAT_MSG);
+  });
+
+  it('accepts the uuid paths saveImage produces', () => {
+    const r = recipe('r1', {
+      photo: 'images/123e4567-e89b-12d3-a456-426614174000.jpg',
+      sourceImages: ['images/ABCDEF01-2345-6789-abcd-ef0123456789.jpg'],
+    });
+    const file = buildBackupJson(categories, [r], NOW);
+    expect(parseBackupJson(JSON.stringify(file))).toEqual(file);
+  });
+});
+
+describe('buildBackupJson', () => {
+  it('refuses to build a backup the restore would reject', () => {
+    expect(() => buildBackupJson(categories, [recipe('r1', { categoryIds: ['missing'] })], NOW)).toThrow(
+      'invalid_backup',
+    );
+    expect(() => buildBackupJson(categories, [recipe('r1', { servings: -1 })], NOW)).toThrow('invalid_backup');
+    expect(() => buildBackupJson(categories, [recipe('r1', { photo: 'file:///x.jpg' })], NOW)).toThrow(
+      'invalid_backup',
+    );
   });
 });
 

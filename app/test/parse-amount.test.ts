@@ -1,4 +1,4 @@
-import { parseAmount } from '../src/recipe/parse-amount';
+import { parseAmount, parseInteger } from '../src/recipe/parse-amount';
 
 describe('parseAmount', () => {
   it('accepts decimal comma and dot', () => {
@@ -11,5 +11,23 @@ describe('parseAmount', () => {
     expect(parseAmount('')).toBeNull();
     expect(parseAmount('   ')).toBeNull();
     expect(parseAmount('abc')).toBeNull();
+  });
+});
+
+describe('parseInteger', () => {
+  it('rounds to a whole number', () => {
+    expect(parseInteger('4')).toBe(4);
+    expect(parseInteger('2,6')).toBe(3);
+    expect(parseInteger('0')).toBe(0);
+    expect(parseInteger('100000')).toBe(100000);
+  });
+
+  it('returns null outside 0..100000, so a backup can always be restored', () => {
+    expect(parseInteger('-1')).toBeNull();
+    expect(parseInteger('-0,4')).toBeNull();
+    expect(parseInteger('100001')).toBeNull();
+    expect(parseInteger('1e9')).toBeNull();
+    expect(parseInteger('Infinity')).toBeNull();
+    expect(parseInteger('')).toBeNull();
   });
 });

@@ -19,8 +19,8 @@ export class BackupFormatError extends Error {
   }
 }
 
-/** Image paths stored in recipes: always `images/<name>`, relative to the document directory. */
-export const IMAGE_PATH_RE = /^images\/[^/\\]+$/;
+/** Image paths stored in recipes: always `images/<uuid>.jpg` (see saveImage), relative to the document directory. */
+export const IMAGE_PATH_RE = /^images\/[A-Za-z0-9-]+\.jpg$/;
 const ImagePath = z.string().regex(IMAGE_PATH_RE).refine((p) => !p.includes('..'));
 
 const Id = z.string().min(1);
@@ -71,14 +71,21 @@ export const BackupFileSchema = z
     }
   });
 
+/**
+ * Builds the backup document and validates it against the same schema the restore uses, so an export
+ * never writes a file that restore would later refuse. Throws on invalid data.
+ */
 export function buildBackupJson(categories: Category[], recipes: Recipe[], now: Date): BackupFile {
-  return {
+  const file: BackupFile = {
     format: BACKUP_FORMAT,
     version: BACKUP_VERSION,
     exportedAt: now.toISOString(),
     categories,
     recipes,
   };
+  const parsed = BackupFileSchema.safeParse(file);
+  if (!parsed.success) throw new Error(`invalid_backup: ${parsed.error.issues[0]?.message ?? 'unknown'}`);
+  return file;
 }
 
 export function parseBackupJson(text: string): BackupFile {

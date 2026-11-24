@@ -6,8 +6,12 @@ export function parseAmount(text: string): number | null {
   return Number.isNaN(n) ? null : n;
 }
 
-/** Like parseAmount, rounded to a whole number (servings, minutes). */
+export const MAX_INTEGER = 100000;
+
+/** Like parseAmount, rounded to a whole number (servings, minutes). Outside 0..MAX_INTEGER → null. */
 export function parseInteger(text: string): number | null {
   const n = parseAmount(text);
-  return n === null ? null : Math.round(n);
+  if (n === null || n < 0) return null;
+  const r = Math.round(n);
+  return r > MAX_INTEGER ? null : r;
 }
