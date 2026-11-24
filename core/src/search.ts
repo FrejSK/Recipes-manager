@@ -1,5 +1,5 @@
 export function normalizeText(s: string): string {
-  return s.normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase().trim();
+  return s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim();
 }
 
 export function filterRecipes<T extends { title: string; categoryIds: string[] }>(

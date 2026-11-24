@@ -1,5 +1,11 @@
 import { describe, it, expect } from 'vitest';
-import { filterRecipes } from '../src/search';
+import { filterRecipes, normalizeText } from '../src/search';
+
+describe('normalizeText', () => {
+  it('strips Slovak/Czech diacritics and lowercases', () => {
+    expect(normalizeText('ŽLUŤOUČKÝ kůň Ďábelské ÓDY Ĺ Ŕ Ä Ô')).toBe('zlutoucky kun dabelske ody l r a o');
+  });
+});
 
 describe('filterRecipes', () => {
   it('ignores diacritics and case', () => {
