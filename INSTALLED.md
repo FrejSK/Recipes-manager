@@ -26,7 +26,7 @@ Zoznam všetkého, čo sa kvôli projektu Recepty nainštalovalo do počítača
 ## Odstránenie všetkého naraz
 
 ```powershell
-# Najprv, kým je Node ešte nainštalovaný (v server/): npx wrangler delete
+# Najprv, kým je Node ešte nainštalovaný (v server/): npx.cmd wrangler delete
 winget uninstall --id OpenJS.NodeJS.LTS -e
 Remove-Item -Recurse -Force "$env:LOCALAPPDATA\npm-cache" -ErrorAction SilentlyContinue
 Remove-Item -Recurse -Force "$env:APPDATA\npm" -ErrorAction SilentlyContinue

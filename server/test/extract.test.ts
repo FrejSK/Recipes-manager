@@ -197,6 +197,8 @@ describe('createGeminiAI', () => {
     expect(p.config.responseMimeType).toBe('application/json');
     expect(p.config.responseJsonSchema).toBeTypeOf('object');
     expect(p.config).not.toHaveProperty('responseSchema');
+    expect(p.config.thinkingConfig).toEqual({ thinkingLevel: 'LOW' });
+    expect(p.config.httpOptions).toEqual({ timeout: 80_000 });
     expect(p.contents).toHaveLength(1);
     expect(p.contents[0].role).toBe('user');
     const parts = p.contents[0].parts ?? [];
@@ -296,6 +298,15 @@ describe('createGeminiAI', () => {
       const { client } = fakeClient(async () => res);
       expect(await createGeminiAI('key', 'm', client).extract({ kind: 'text', text: 'x' }, [])).toEqual(failed);
     }
+  });
+
+  it('request timeout (abort) → ai_failed, logged by error class only', async () => {
+    const { client } = fakeClient(async () => {
+      throw new DOMException('The operation was aborted. tajný', 'AbortError');
+    });
+    expect(await createGeminiAI('key', 'm', client).extract({ kind: 'text', text: 'tajný recept' }, [])).toEqual(failed);
+    expect(console.error).toHaveBeenLastCalledWith('ai_failed', { error: 'DOMException' });
+    expect(JSON.stringify(vi.mocked(console.error).mock.calls)).not.toMatch(/tajný|aborted/);
   });
 
   it('SDK throw → ai_failed', async () => {

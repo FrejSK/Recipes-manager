@@ -21,10 +21,15 @@ spustil skripty `npm.ps1`/`npx.ps1`, ktoré predvolené nastavenie Windows
 - Node.js (inštalácia je popísaná v `INSTALLED.md` v koreni repozitára).
 - Bezplatný účet na Cloudflare (https://dash.cloudflare.com/sign-up).
 - API kľúč z Google AI Studio (https://aistudio.google.com/apikey). Stačí
-  bezplatný plán; má denný limit požiadaviek. Pozor: pri bezplatnom pláne
-  môže Google odoslaný obsah (texty, odkazy a screenshoty receptov) použiť na
-  zlepšovanie svojich produktov. Ak to nechceš, zapni v AI Studio platený
-  plán (billing) a nastav si limit výdavkov.
+  bezplatný plán; má denný limit požiadaviek.
+
+  Ochrana údajov: pre používateľov v EHP (teda aj na Slovensku), vo
+  Švajčiarsku a v Spojenom kráľovstve platia podmienky Google pre platené
+  služby, aj keď používaš Google AI Studio a bezplatný limit. Google podľa nich
+  nepoužíva odoslané výzvy ani odpovede (texty, odkazy a screenshoty receptov)
+  na zlepšovanie svojich produktov. Mimo týchto oblastí môže Google obsah
+  z bezplatného plánu použiť na zlepšovanie produktov a môžu ho čítať aj
+  ľudskí posudzovatelia. Podmienky: https://ai.google.dev/gemini-api/terms.
 - Závislosti nainštalované: `npm.cmd install` v koreni repozitára.
 
 ## Prvé nasadenie

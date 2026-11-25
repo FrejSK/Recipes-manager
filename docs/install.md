@@ -212,6 +212,8 @@ Pred každou aktualizáciou odporúčame urobiť v aplikácii export zálohy.
 - Záloha sa ako "naposledy urobená" počíta, keď sa zatvorí zdieľací dialóg,
   aj keby sa súbor nikam neuložil.
 - Každý import volá Gemini. Bezplatný plán Google AI Studio má denný limit
-  požiadaviek a Google môže odoslaný obsah použiť na zlepšovanie svojich
-  produktov (pozri `server/README.md`).
+  požiadaviek. Na Slovensku (EHP) Google podľa svojich podmienok nepoužíva
+  odoslané recepty na zlepšovanie produktov ani pri bezplatnom pláne; mimo
+  EHP, Švajčiarska a Spojeného kráľovstva to tak nemusí byť (podrobnosti
+  v `server/README.md`, podmienky na https://ai.google.dev/gemini-api/terms).
 - Server má denný limit 50 importov.

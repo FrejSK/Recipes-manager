@@ -1,6 +1,6 @@
 # Čo ostáva po implementácii
 
-Stav k 2026-11-24, vetva `feature/recipes-app`. Od 2026-11-25 server namiesto Claude volá Gemini (Google AI Studio). Všetkých 17 úloh plánu je hotových a skontrolovaných. Testy prechádzajú: core 32, server 52, app 151.
+Stav k 2026-11-24, vetva `feature/recipes-app`. Od 2026-11-25 server namiesto Claude volá Gemini (Google AI Studio). Všetkých 17 úloh plánu je hotových a skontrolovaných. Testy prechádzajú: core 32, server 59, app 151.
 
 ## Kroky, ktoré musí urobiť vývojár (účty, telefón, platené volania)
 

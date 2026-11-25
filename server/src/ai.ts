@@ -1,4 +1,4 @@
-import { GoogleGenAI, type Content, type GenerateContentConfig, type GenerateContentParameters, type Part } from '@google/genai';
+import { GoogleGenAI, ThinkingLevel, type Content, type GenerateContentConfig, type GenerateContentParameters, type Part } from '@google/genai';
 import { ExtractedRecipeSchema, type ExtractedRecipe } from '@recipes/core';
 import { z } from 'zod';
 import { errorInfo } from './log';
@@ -16,6 +16,9 @@ export interface RecipeAI {
 
 /** Overridable without code changes through the GEMINI_MODEL var in wrangler.toml. */
 export const DEFAULT_MODEL = 'gemini-3.8-flash';
+
+/** Below the app's 90 s abort, so the Worker still answers (and logs) ai_failed. The SDK does not retry by default. */
+const REQUEST_TIMEOUT_MS = 80_000;
 
 const AiRecipeSchema = ExtractedRecipeSchema.extend({ isRecipe: z.boolean() });
 
@@ -101,6 +104,9 @@ export function createGeminiAI(apiKey: string, model?: string, client?: Generate
             systemInstruction: SYSTEM_PROMPT,
             responseMimeType: 'application/json',
             responseJsonSchema: RESPONSE_JSON_SCHEMA,
+            // Extraction needs little reasoning; low thinking keeps latency down.
+            thinkingConfig: { thinkingLevel: ThinkingLevel.LOW },
+            httpOptions: { timeout: REQUEST_TIMEOUT_MS },
           },
         });
         const finishReason = res.candidates?.[0]?.finishReason;
