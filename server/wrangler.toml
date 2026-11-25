@@ -10,5 +10,5 @@ GEMINI_MODEL = "gemini-3.8-flash"
 
 [[kv_namespaces]]
 binding = "LIMITS"
-# Sem vlož id z `npx.cmd wrangler kv namespace create LIMITS` (postup: server/README.md)
-id = "TODO_KV_NAMESPACE_ID"
+# id z `npx.cmd wrangler kv namespace create LIMITS` (postup: server/README.md)
+id = "8cbbfefeda584e13a42605d91efaf6bc"
