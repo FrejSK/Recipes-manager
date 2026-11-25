@@ -17,8 +17,8 @@ export interface RecipeAI {
 /** Overridable without code changes through the GEMINI_MODEL var in wrangler.toml. */
 export const DEFAULT_MODEL = 'gemini-3.8-flash';
 
-/** Below the app's 90 s abort, so the Worker still answers (and logs) ai_failed. The SDK does not retry by default. */
-const REQUEST_TIMEOUT_MS = 80_000;
+/** URL imports: up to 15 s page fetch + this stays below the app's 90 s abort, so the Worker still answers (and logs) ai_failed. The SDK does not retry by default. */
+const REQUEST_TIMEOUT_MS = 70_000;
 
 const AiRecipeSchema = ExtractedRecipeSchema.extend({ isRecipe: z.boolean() });
 

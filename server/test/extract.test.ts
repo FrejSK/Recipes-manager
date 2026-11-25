@@ -198,7 +198,7 @@ describe('createGeminiAI', () => {
     expect(p.config.responseJsonSchema).toBeTypeOf('object');
     expect(p.config).not.toHaveProperty('responseSchema');
     expect(p.config.thinkingConfig).toEqual({ thinkingLevel: 'LOW' });
-    expect(p.config.httpOptions).toEqual({ timeout: 80_000 });
+    expect(p.config.httpOptions).toEqual({ timeout: 70_000 });
     expect(p.contents).toHaveLength(1);
     expect(p.contents[0].role).toBe('user');
     const parts = p.contents[0].parts ?? [];
