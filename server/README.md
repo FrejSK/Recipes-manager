@@ -130,7 +130,15 @@ Pri chybe tam uvidíš riadok `ai_failed` alebo `extract_failed` s typom chyby,
 HTTP stavom a pri AI aj `finishReason`/`blockReason` (prečo Gemini skončilo
 alebo odpoveď zablokovalo) či `reason` (napr. `invalid_json`,
 `missing_api_key`). Stav 429 znamená prekročený limit požiadaviek Gemini
-(na bezplatnom pláne je nízky).
+(na bezplatnom pláne je nízky). Stav 503 alebo 504 znamená preťaženie na
+strane Google, nie chybu v kóde ani v kľúči.
+
+Pri dočasných chybách (429, 500, 502, 503, 504) Worker skúša znova sám:
+najprv po ~1 s ten istý model, potom raz záložný model (pozri Zmena modelu).
+Každý taký neúspešný pokus sa zapíše ako riadok `ai_retry` s modelom, poradím
+pokusu, typom chyby a stavom. Riadok `ai_failed` príde až vtedy, keď zlyhajú
+všetky pokusy alebo keď chyba nie je dočasná (napr. 400, vypršaný čas,
+nevalidná odpoveď). Všetky pokusy spolu trvajú najviac 70 s.
 Obsah receptov, tokeny ani kľúče sa nelogujú. Výpis ukončíš klávesmi Ctrl+C.
 
 V dashboarde Cloudflare (Workers & Pages, `recepty-extract`, Metrics) si
@@ -153,8 +161,13 @@ mesačne) v dashboarde v časti Workers & Pages, Plans.
 
 ## Zmena modelu
 
-Model je v `wrangler.toml` v premennej `GEMINI_MODEL` (predvolene
-`gemini-3.8-flash`). Názvy modelov sú na https://ai.google.dev/gemini-api/docs/models.
+Primárny model je v `wrangler.toml` v premennej `GEMINI_MODEL` (predvolene
+`gemini-3.6-flash`). Záložný model je v premennej `GEMINI_FALLBACK_MODEL`
+(predvolene `gemini-3.8-flash`): použije sa raz, keď primárny model dvakrát
+po sebe vráti dočasnú chybu (napr. 503 pri preťažení). Zálohu vypneš
+prázdnou hodnotou `GEMINI_FALLBACK_MODEL = ""`; potom sa skúša len primárny
+model, najviac dvakrát. Rovnaká hodnota ako `GEMINI_MODEL` má ten istý účinok.
+Názvy modelov sú na https://ai.google.dev/gemini-api/docs/models.
 Zmeň hodnotu a znova nasaď:
 
 ```powershell
@@ -162,7 +175,10 @@ npm.cmd run deploy
 ```
 
 Kód ani aplikáciu netreba meniť. Pre lokálny vývoj a smoke test môžeš
-pridať riadok `GEMINI_MODEL=` aj do `.dev.vars`.
+pridať riadky `GEMINI_MODEL=` a `GEMINI_FALLBACK_MODEL=` aj do `.dev.vars`.
+Pozor: riadok `GEMINI_FALLBACK_MODEL=` bez hodnoty v `.dev.vars` zálohu
+vypne; ak ho vynecháš, platí hodnota z `wrangler.toml` (pri smoke teste
+predvolený `gemini-3.8-flash`).
 
 ## Lokálny vývoj
 

@@ -15,10 +15,28 @@ export interface RecipeAI {
 }
 
 /** Overridable without code changes through the GEMINI_MODEL var in wrangler.toml. */
-export const DEFAULT_MODEL = 'gemini-3.8-flash';
+export const DEFAULT_MODEL = 'gemini-3.6-flash';
 
-/** URL imports: up to 15 s page fetch + this stays below the app's 90 s abort, so the Worker still answers (and logs) ai_failed. The SDK does not retry by default. */
+/** Tried once after the primary model failed twice with a transient error; GEMINI_FALLBACK_MODEL, "" disables it. */
+export const DEFAULT_FALLBACK_MODEL = 'gemini-3.8-flash';
+
+/**
+ * One deadline shared by all attempts and backoffs. URL imports: up to 15 s page fetch + this stays below
+ * the app's 90 s abort, so the Worker still answers (and logs) ai_failed. The SDK itself does not retry
+ * (no `retryOptions`); this module does.
+ */
 const REQUEST_TIMEOUT_MS = 70_000;
+/** Pause before calling the primary model again. */
+const RETRY_BACKOFF_MS = 1_000;
+/** A further attempt starts only if at least this much of the deadline is left for it. */
+const MIN_ATTEMPT_MS = 5_000;
+/** HTTP statuses of transient API errors (rate limit, overload); anything else is final. */
+const RETRYABLE_STATUSES = new Set([429, 500, 502, 503, 504]);
+
+function isRetryable(e: unknown): boolean {
+  const status = (e as { status?: unknown } | null)?.status;
+  return typeof status === 'number' && RETRYABLE_STATUSES.has(status);
+}
 
 const AiRecipeSchema = ExtractedRecipeSchema.extend({ isRecipe: z.boolean() });
 
@@ -84,48 +102,91 @@ function userParts(input: AiInput, categories: string[]): Part[] {
   ];
 }
 
-/** Gemini via an AI Studio key. A missing key fails each request with ai_failed instead of crashing the Worker. */
-export function createGeminiAI(apiKey: string, model?: string, client?: GenerateClient): RecipeAI {
+export interface GeminiOptions {
+  /** Model tried once after two transient failures of the primary. undefined → DEFAULT_FALLBACK_MODEL, "" → none. */
+  fallbackModel?: string;
+  /** Injected in tests so retries never wait for real. */
+  sleep?: (ms: number) => Promise<void>;
+  /** Milliseconds clock for the shared deadline; injected in tests. */
+  now?: () => number;
+}
+
+const realSleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+
+/**
+ * Gemini via an AI Studio key. A missing key fails each request with ai_failed instead of crashing the Worker.
+ * Transient API errors (429, 5xx) are retried: primary, primary again after RETRY_BACKOFF_MS, then the
+ * fallback model once, all within one REQUEST_TIMEOUT_MS deadline. Any other outcome ends the attempts.
+ */
+export function createGeminiAI(apiKey: string, model?: string, client?: GenerateClient, opts: GeminiOptions = {}): RecipeAI {
   const modelId = model || DEFAULT_MODEL;
+  const fallbackId = opts.fallbackModel ?? DEFAULT_FALLBACK_MODEL;
+  const plan = fallbackId && fallbackId !== modelId ? [modelId, modelId, fallbackId] : [modelId, modelId];
+  const sleep = opts.sleep ?? realSleep;
+  const now = opts.now ?? Date.now;
   const fail = (info: Record<string, unknown>): AiResult => {
     // Visible in `wrangler tail`; never the request, the response text, or the key.
     console.error('ai_failed', info);
     return { ok: false, error: 'ai_failed' };
   };
+
+  /** One call; SDK errors propagate so the caller can decide whether to retry. */
+  async function attempt(api: GenerateClient, attemptModel: string, timeout: number, parts: Part[]): Promise<AiResult> {
+    const res = await api.models.generateContent({
+      model: attemptModel,
+      contents: [{ role: 'user', parts }],
+      config: {
+        systemInstruction: SYSTEM_PROMPT,
+        responseMimeType: 'application/json',
+        responseJsonSchema: RESPONSE_JSON_SCHEMA,
+        // Extraction needs little reasoning; low thinking keeps latency down.
+        thinkingConfig: { thinkingLevel: ThinkingLevel.LOW },
+        httpOptions: { timeout },
+      },
+    });
+    const finishReason = res.candidates?.[0]?.finishReason;
+    const blockReason = res.promptFeedback?.blockReason;
+    const text = res.text;
+    if (blockReason || (finishReason !== undefined && finishReason !== 'STOP') || !text) {
+      return fail({ finishReason, blockReason });
+    }
+    let json: unknown;
+    try {
+      json = JSON.parse(text);
+    } catch {
+      return fail({ reason: 'invalid_json' });
+    }
+    const parsed = AiRecipeSchema.safeParse(json);
+    if (!parsed.success) return fail({ reason: 'schema_mismatch' });
+    const { isRecipe, ...recipe } = parsed.data;
+    if (!isRecipe) return { ok: false, error: 'not_a_recipe' };
+    return { ok: true, recipe };
+  }
+
   return {
     async extract(input, categories) {
       try {
         if (!apiKey) return fail({ reason: 'missing_api_key' });
         const api: GenerateClient = client ?? new GoogleGenAI({ apiKey });
-        const res = await api.models.generateContent({
-          model: modelId,
-          contents: [{ role: 'user', parts: userParts(input, categories) }],
-          config: {
-            systemInstruction: SYSTEM_PROMPT,
-            responseMimeType: 'application/json',
-            responseJsonSchema: RESPONSE_JSON_SCHEMA,
-            // Extraction needs little reasoning; low thinking keeps latency down.
-            thinkingConfig: { thinkingLevel: ThinkingLevel.LOW },
-            httpOptions: { timeout: REQUEST_TIMEOUT_MS },
-          },
-        });
-        const finishReason = res.candidates?.[0]?.finishReason;
-        const blockReason = res.promptFeedback?.blockReason;
-        const text = res.text;
-        if (blockReason || (finishReason !== undefined && finishReason !== 'STOP') || !text) {
-          return fail({ finishReason, blockReason });
+        const parts = userParts(input, categories);
+        const deadline = now() + REQUEST_TIMEOUT_MS;
+        let lastError: unknown;
+        for (let i = 0; i < plan.length; i++) {
+          if (i > 0) {
+            // Same model again: give its overload a moment. A different model needs no pause.
+            const backoff = plan[i] === plan[i - 1] ? RETRY_BACKOFF_MS : 0;
+            if (deadline - now() - backoff < MIN_ATTEMPT_MS) break;
+            if (backoff > 0) await sleep(backoff);
+          }
+          try {
+            return await attempt(api, plan[i], deadline - now(), parts);
+          } catch (e) {
+            if (!isRetryable(e)) return fail(errorInfo(e));
+            console.error('ai_retry', { model: plan[i], attempt: i + 1, ...errorInfo(e) });
+            lastError = e;
+          }
         }
-        let json: unknown;
-        try {
-          json = JSON.parse(text);
-        } catch {
-          return fail({ reason: 'invalid_json' });
-        }
-        const parsed = AiRecipeSchema.safeParse(json);
-        if (!parsed.success) return fail({ reason: 'schema_mismatch' });
-        const { isRecipe, ...recipe } = parsed.data;
-        if (!isRecipe) return { ok: false, error: 'not_a_recipe' };
-        return { ok: true, recipe };
+        return fail(errorInfo(lastError));
       } catch (e) {
         return fail(errorInfo(e));
       }

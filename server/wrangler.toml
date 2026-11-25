@@ -6,7 +6,9 @@ compatibility_flags = ["nodejs_compat"]
 [vars]
 DAILY_LIMIT = "50"
 # Model Gemini; zmena bez kódu: uprav hodnotu a znova nasaď (postup: server/README.md)
-GEMINI_MODEL = "gemini-3.8-flash"
+GEMINI_MODEL = "gemini-3.6-flash"
+# Záložný model: skúsi sa raz, keď primárny dvakrát vráti dočasnú chybu (429, 5xx); "" = bez zálohy
+GEMINI_FALLBACK_MODEL = "gemini-3.8-flash"
 
 [[kv_namespaces]]
 binding = "LIMITS"

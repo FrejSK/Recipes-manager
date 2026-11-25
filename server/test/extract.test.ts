@@ -1,7 +1,8 @@
 import { readFileSync } from 'node:fs';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ExtractedRecipe } from '@recipes/core';
-import { createGeminiAI, DEFAULT_MODEL, type AiInput, type GenerateClient, type RecipeAI } from '../src/ai';
+import { ApiError } from '@google/genai';
+import { createGeminiAI, DEFAULT_FALLBACK_MODEL, DEFAULT_MODEL, type AiInput, type GenerateClient, type RecipeAI } from '../src/ai';
 import { extract, resolvePhotoUrl } from '../src/extract';
 import { fetchPage, MAX_PAGE_BYTES } from '../src/fetch-page';
 import { htmlToText } from '../src/html-text';
@@ -175,8 +176,9 @@ describe('createGeminiAI', () => {
   });
   afterEach(() => vi.restoreAllMocks());
 
-  it('uses gemini-3.8-flash by default', () => {
-    expect(DEFAULT_MODEL).toBe('gemini-3.8-flash');
+  it('uses gemini-3.6-flash by default, with gemini-3.8-flash as the fallback', () => {
+    expect(DEFAULT_MODEL).toBe('gemini-3.6-flash');
+    expect(DEFAULT_FALLBACK_MODEL).toBe('gemini-3.8-flash');
   });
 
   it('returns the recipe without isRecipe on success', async () => {
@@ -188,7 +190,10 @@ describe('createGeminiAI', () => {
 
   it('sends model, system prompt, JSON mime type, schema and categories in the user text', async () => {
     const { client, params } = ok();
-    await createGeminiAI('key', 'gemini-test-model', client).extract({ kind: 'text', text: 'Recept na guláš' }, categories);
+    await createGeminiAI('key', 'gemini-test-model', client, { now: () => 1_000 }).extract(
+      { kind: 'text', text: 'Recept na guláš' },
+      categories,
+    );
     expect(params).toHaveLength(1);
     const p = params[0];
     expect(p.model).toBe('gemini-test-model');
@@ -375,6 +380,199 @@ describe('createGeminiAI', () => {
   });
 });
 
+/** A fake clock: `sleep` advances `now` at once, so retries never wait for real. */
+function fakeClock(start = 0) {
+  const clock = {
+    t: start,
+    sleeps: [] as number[],
+    now: () => clock.t,
+    sleep: async (ms: number) => {
+      clock.sleeps.push(ms);
+      clock.t += ms;
+    },
+  };
+  return clock;
+}
+
+type Step = { res?: GeminiResponse; err?: unknown; elapse?: number };
+
+/** Each call takes the next step: `elapse` ms pass on the clock, then it throws `err` or returns `res`. */
+function scriptedClient(clock: ReturnType<typeof fakeClock>, steps: Step[]) {
+  const params: GeminiParams[] = [];
+  const client: GenerateClient = {
+    models: {
+      async generateContent(p) {
+        params.push(p);
+        const step = steps[params.length - 1];
+        if (!step) throw new Error(`unexpected call ${params.length}`);
+        clock.t += step.elapse ?? 0;
+        if (step.err !== undefined) throw step.err;
+        return step.res ?? {};
+      },
+    },
+  };
+  return { client, params, models: () => params.map((p) => p.model), timeouts: () => params.map((p) => p.config.httpOptions?.timeout) };
+}
+
+const apiError = (status: number, elapse = 0): Step => ({
+  err: new ApiError({ message: `${status} {"error":"overloaded"} tajný recept AIza-secret`, status }),
+  elapse,
+});
+const success: Step = { res: reply({ ...recipe, isRecipe: true }) };
+
+describe('createGeminiAI retry and fallback', () => {
+  beforeEach(() => {
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+  });
+  afterEach(() => vi.restoreAllMocks());
+
+  const run = (client: GenerateClient, clock: ReturnType<typeof fakeClock>, fallbackModel?: string) =>
+    createGeminiAI('AIza-secret', 'primary', client, { fallbackModel, sleep: clock.sleep, now: clock.now }).extract(
+      { kind: 'text', text: 'tajný recept' },
+      [],
+    );
+
+  it('503 then success → ok after a second call to the same model, ~1 s backoff', async () => {
+    const clock = fakeClock();
+    const c = scriptedClient(clock, [apiError(503), success]);
+    expect(await run(c.client, clock, 'backup')).toEqual({ ok: true, recipe });
+    expect(c.models()).toEqual(['primary', 'primary']);
+    expect(clock.sleeps).toEqual([1_000]);
+    expect(c.params[1].contents).toEqual(c.params[0].contents);
+  });
+
+  it('retries each transient status: 429, 500, 502, 503, 504', async () => {
+    for (const status of [429, 500, 502, 503, 504]) {
+      const clock = fakeClock();
+      const c = scriptedClient(clock, [apiError(status), success]);
+      expect(await run(c.client, clock, 'backup')).toEqual({ ok: true, recipe });
+      expect(c.models()).toEqual(['primary', 'primary']);
+    }
+  });
+
+  it('503, 503, then success on the fallback model', async () => {
+    const clock = fakeClock();
+    const c = scriptedClient(clock, [apiError(503), apiError(503), success]);
+    expect(await run(c.client, clock, 'backup')).toEqual({ ok: true, recipe });
+    expect(c.models()).toEqual(['primary', 'primary', 'backup']);
+    // A different model does not share the primary's overload, so no pause before it.
+    expect(clock.sleeps).toEqual([1_000]);
+  });
+
+  it('503 three times → ai_failed after 3 calls; an unset fallback means DEFAULT_FALLBACK_MODEL', async () => {
+    const clock = fakeClock();
+    const c = scriptedClient(clock, [apiError(503), apiError(503), apiError(503)]);
+    expect(await run(c.client, clock)).toEqual(failed);
+    expect(c.models()).toEqual(['primary', 'primary', DEFAULT_FALLBACK_MODEL]);
+    expect(console.error).toHaveBeenLastCalledWith('ai_failed', { error: 'ApiError', status: 503 });
+  });
+
+  it('400, 401, 403, 404 → no retry', async () => {
+    for (const status of [400, 401, 403, 404]) {
+      const clock = fakeClock();
+      const c = scriptedClient(clock, [apiError(status), success]);
+      expect(await run(c.client, clock, 'backup')).toEqual(failed);
+      expect(c.params).toHaveLength(1);
+      expect(clock.sleeps).toEqual([]);
+      expect(console.error).toHaveBeenLastCalledWith('ai_failed', { error: 'ApiError', status });
+    }
+  });
+
+  it('timeout (abort) → no retry', async () => {
+    const clock = fakeClock();
+    const c = scriptedClient(clock, [{ err: new DOMException('The operation was aborted.', 'AbortError'), elapse: 20_000 }, success]);
+    expect(await run(c.client, clock, 'backup')).toEqual(failed);
+    expect(c.params).toHaveLength(1);
+    expect(console.error).toHaveBeenLastCalledWith('ai_failed', { error: 'DOMException' });
+  });
+
+  it('an error without a numeric status → no retry', async () => {
+    const clock = fakeClock();
+    const c = scriptedClient(clock, [{ err: new TypeError('fetch failed') }, { err: Object.assign(new Error('x'), { status: '503' }) }]);
+    expect(await run(c.client, clock, 'backup')).toEqual(failed);
+    expect(c.params).toHaveLength(1);
+  });
+
+  it('a response that is not a usable recipe → no retry (invalid JSON, schema mismatch, non-STOP, not a recipe)', async () => {
+    const cases: [GeminiResponse, AiResult][] = [
+      [reply('not json'), failed as AiResult],
+      [reply({ title: 'Guláš', isRecipe: true }), failed as AiResult],
+      [{ text: JSON.stringify({ ...recipe, isRecipe: true }), candidates: [{ finishReason: 'MAX_TOKENS' }] }, failed as AiResult],
+      [{ promptFeedback: { blockReason: 'SAFETY' } }, failed as AiResult],
+      [reply({ ...recipe, isRecipe: false }), { ok: false, error: 'not_a_recipe' }],
+    ];
+    for (const [res, expected] of cases) {
+      const clock = fakeClock();
+      const c = scriptedClient(clock, [{ res }, success]);
+      expect(await run(c.client, clock, 'backup')).toEqual(expected);
+      expect(c.params).toHaveLength(1);
+    }
+  });
+
+  it('success on the first call → exactly one call, no sleep', async () => {
+    const clock = fakeClock();
+    const c = scriptedClient(clock, [success, success]);
+    expect(await run(c.client, clock, 'backup')).toEqual({ ok: true, recipe });
+    expect(c.params).toHaveLength(1);
+    expect(clock.sleeps).toEqual([]);
+  });
+
+  it('an empty fallback disables it: at most 2 calls', async () => {
+    const clock = fakeClock();
+    const c = scriptedClient(clock, [apiError(503), apiError(503), success]);
+    expect(await run(c.client, clock, '')).toEqual(failed);
+    expect(c.models()).toEqual(['primary', 'primary']);
+  });
+
+  it('a fallback equal to the primary model adds no attempt: at most 2 calls', async () => {
+    const clock = fakeClock();
+    const c = scriptedClient(clock, [apiError(503), apiError(503), success]);
+    expect(await run(c.client, clock, 'primary')).toEqual(failed);
+    expect(c.models()).toEqual(['primary', 'primary']);
+  });
+
+  it('each attempt gets the rest of the shared 70 s budget as its timeout', async () => {
+    const clock = fakeClock(1_000_000);
+    const c = scriptedClient(clock, [apiError(503, 10_000), apiError(504, 20_000), success]);
+    expect(await run(c.client, clock, 'backup')).toEqual({ ok: true, recipe });
+    // 70 000; then 70 000 - 10 000 - 1 000 backoff; then 70 000 - 31 000.
+    expect(c.timeouts()).toEqual([70_000, 59_000, 39_000]);
+  });
+
+  it('no further attempt (and no sleep) when less than 5 s would remain after the backoff', async () => {
+    const clock = fakeClock();
+    // 64 500 ms used: 5 500 left, 4 500 after the 1 s backoff.
+    const c = scriptedClient(clock, [apiError(503, 64_500), success]);
+    expect(await run(c.client, clock, 'backup')).toEqual(failed);
+    expect(c.params).toHaveLength(1);
+    expect(clock.sleeps).toEqual([]);
+    expect(console.error).toHaveBeenLastCalledWith('ai_failed', { error: 'ApiError', status: 503 });
+  });
+
+  it('the deadline also stops the fallback attempt', async () => {
+    const clock = fakeClock();
+    // 63 000 ms used: 6 000 left after the backoff, so a 2nd attempt; it uses 2 000 more, leaving 4 000 for the fallback.
+    const c = scriptedClient(clock, [apiError(503, 63_000), apiError(503, 2_000), success]);
+    expect(await run(c.client, clock, 'backup')).toEqual(failed);
+    expect(c.models()).toEqual(['primary', 'primary']);
+    expect(c.timeouts()).toEqual([70_000, 6_000]);
+  });
+
+  it('logs ai_retry with model, attempt, error class and status for each transient failure, never content or keys', async () => {
+    const clock = fakeClock();
+    const c = scriptedClient(clock, [apiError(503), apiError(429), apiError(504)]);
+    expect(await run(c.client, clock, 'backup')).toEqual(failed);
+    const calls = vi.mocked(console.error).mock.calls;
+    expect(calls).toEqual([
+      ['ai_retry', { model: 'primary', attempt: 1, error: 'ApiError', status: 503 }],
+      ['ai_retry', { model: 'primary', attempt: 2, error: 'ApiError', status: 429 }],
+      ['ai_retry', { model: 'backup', attempt: 3, error: 'ApiError', status: 504 }],
+      ['ai_failed', { error: 'ApiError', status: 504 }],
+    ]);
+    expect(JSON.stringify(calls)).not.toMatch(/tajný|secret|AIza|overloaded/);
+  });
+});
+
 describe('fetchPage', () => {
   afterEach(() => vi.unstubAllGlobals());
 
@@ -512,13 +710,10 @@ describe('createGeminiAI logging', () => {
 
   it('logs the error class and HTTP status of an SDK failure, nothing else', async () => {
     const log = vi.spyOn(console, 'error').mockImplementation(() => {});
-    class ApiError extends Error {
-      status = 429;
-    }
     const { client } = fakeClient(async () => {
-      throw new ApiError('429 {"error":"rate limited"} key AIza-secret');
+      throw new ApiError({ message: '429 {"error":"rate limited"} key AIza-secret', status: 429 });
     });
-    await createGeminiAI('AIza-secret', 'm', client).extract({ kind: 'text', text: 'tajný recept' }, []);
+    await createGeminiAI('AIza-secret', 'm', client, { sleep: async () => {} }).extract({ kind: 'text', text: 'tajný recept' }, []);
     expect(log).toHaveBeenCalledWith('ai_failed', { error: 'ApiError', status: 429 });
     expect(JSON.stringify(log.mock.calls)).not.toMatch(/secret|tajný/);
   });

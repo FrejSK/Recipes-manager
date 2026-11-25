@@ -27,5 +27,7 @@ if (!apiKey) {
 }
 
 const categories = ['Polievky', 'Hlavné jedlá', 'Dezerty'];
-const result = await createGeminiAI(apiKey, process.env.GEMINI_MODEL || DEFAULT_MODEL).extract({ kind: 'text', text: RECIPE }, categories);
+const result = await createGeminiAI(apiKey, process.env.GEMINI_MODEL || DEFAULT_MODEL, undefined, {
+  fallbackModel: process.env.GEMINI_FALLBACK_MODEL,
+}).extract({ kind: 'text', text: RECIPE }, categories);
 console.log(JSON.stringify(result, null, 2));
