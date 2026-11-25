@@ -8,7 +8,6 @@ import { createSettingsRepo } from '../src/db/settings-repo';
 import type { SqlDb } from '../src/db/sql';
 import { createNodeDb } from './sqlite-node';
 
-jest.mock('expo-crypto', () => ({ randomUUID: () => require('crypto').randomUUID() }));
 
 const FIXED = new Date('2026-01-02T03:04:05.000Z');
 

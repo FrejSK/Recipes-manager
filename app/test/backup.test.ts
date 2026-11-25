@@ -12,7 +12,6 @@ import { createRecipesRepo } from '../src/db/recipes-repo';
 import { createSettingsRepo } from '../src/db/settings-repo';
 import { createNodeDb } from './sqlite-node';
 
-jest.mock('expo-crypto', () => ({ randomUUID: () => require('crypto').randomUUID() }));
 
 const NOW = new Date('2026-11-24T10:00:00.000Z');
 const FORMAT_MSG = 'Súbor nie je záloha receptov.';

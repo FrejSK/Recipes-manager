@@ -1,5 +1,5 @@
 import { normalizeText, type Recipe, type RecipeInput } from '@recipes/core';
-import { randomUUID } from 'expo-crypto';
+import { randomUUID } from '../util/uuid';
 
 import type { SettingsRepo } from './settings-repo';
 import type { SqlDb } from './sql';

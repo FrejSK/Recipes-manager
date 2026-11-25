@@ -1,5 +1,5 @@
 import { DEFAULT_CATEGORIES } from '@recipes/core';
-import { randomUUID } from 'expo-crypto';
+import { randomUUID } from '../util/uuid';
 
 import type { SqlDb } from './sql';
 

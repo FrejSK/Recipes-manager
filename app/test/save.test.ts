@@ -6,7 +6,6 @@ import { emptyDraft, recipeToDraft, type RecipeDraft } from '../src/recipe/draft
 import { saveDraft } from '../src/recipe/save';
 import { createNodeDb } from './sqlite-node';
 
-jest.mock('expo-crypto', () => ({ randomUUID: () => require('crypto').randomUUID() }));
 
 async function setup() {
   const db = createNodeDb();
