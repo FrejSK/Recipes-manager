@@ -54,6 +54,25 @@ Vývojár chce na rozpoznávanie receptov používať kľúč z Google AI Studio
   README pridá poznámku, že pri bezplatnom pláne môže Google použiť obsah
   na zlepšovanie svojich služieb.
 
+## Doplnok (2026-11-25): preťaženie Gemini
+
+Pri prvých skutočných importoch Gemini vrátil `503` a `504` (preťažený model
+`gemini-3.8-flash` na bezplatnom pláne). Vývojár schválil dve zmeny:
+
+1. **Primárny model `gemini-3.6-flash`** (`GEMINI_MODEL` vo `wrangler.toml`).
+2. **Automatické opakovanie a záložný model:**
+   - opakuje sa iba pri dočasných chybách API: stav 429, 500, 502, 503, 504;
+   - poradie pokusov: primárny model, po krátkej pauze (~1 s) znova primárny,
+     potom raz záložný model `GEMINI_FALLBACK_MODEL` (predvolene
+     `gemini-3.8-flash`; prázdna hodnota = bez zálohy);
+   - všetky pokusy spolu sa musia zmestiť do 70 s (spoločný termín). Každý pokus
+     dostane ako timeout zvyšný čas a ďalší pokus sa nespustí, ak ostáva menej
+     ako ~5 s;
+   - neopakuje sa pri vypršaní času, chybách 400/401/403, nevalidnej odpovedi,
+     nezhode so schémou ani pri „nie je recept“;
+   - každý neúspešný pokus sa zaloguje (model, poradie pokusu, názov chyby,
+     stav), nikdy nie obsah.
+
 ## Na staviteľovi
 
 - Presné názvy parametrov SDK `@google/genai` (overiť v nainštalovanej
