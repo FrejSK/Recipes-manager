@@ -5,8 +5,10 @@ compatibility_flags = ["nodejs_compat"]
 
 [vars]
 DAILY_LIMIT = "50"
+# Model Gemini; zmena bez kódu: uprav hodnotu a znova nasaď (postup: server/README.md)
+GEMINI_MODEL = "gemini-3.8-flash"
 
 [[kv_namespaces]]
 binding = "LIMITS"
-# Sem vlož id z `npx wrangler kv namespace create LIMITS` (postup: server/README.md)
+# Sem vlož id z `npx.cmd wrangler kv namespace create LIMITS` (postup: server/README.md)
 id = "TODO_KV_NAMESPACE_ID"

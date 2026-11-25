@@ -1,9 +1,9 @@
 /// <reference types="node" />
-// Paid smoke test against the real Claude API (about a cent per run). Ask before running.
-// Usage (from server/, key in .dev.vars, never on the command line): npx tsx --env-file=.dev.vars scripts/smoke.ts
+// Smoke test against the real Gemini API (free tier: uses the daily quota; paid tier: billed per token). Ask before running.
+// Usage (from server/, key in .dev.vars, never on the command line): npx.cmd tsx --env-file=.dev.vars scripts/smoke.ts
 // Expect in the output: soľ "½ lyžičky" → amount 0.5, unit "CL"; cesnak → amount 2, amountMax 3,
 // unit "strucik"; "soľ podľa chuti" → amount null.
-import { createClaudeAI } from '../src/ai';
+import { createGeminiAI, DEFAULT_MODEL } from '../src/ai';
 
 const RECIPE = `Cesnaková polievka
 
@@ -20,12 +20,12 @@ Postup:
 2. Pridáme roztlačený cesnak a maslo.
 3. Dochutíme soľou a podávame s chlebom.`;
 
-const apiKey = process.env.ANTHROPIC_API_KEY;
+const apiKey = process.env.GEMINI_API_KEY;
 if (!apiKey) {
-  console.error('ANTHROPIC_API_KEY is not set.');
+  console.error('GEMINI_API_KEY is not set.');
   process.exit(1);
 }
 
 const categories = ['Polievky', 'Hlavné jedlá', 'Dezerty'];
-const result = await createClaudeAI(apiKey).extract({ kind: 'text', text: RECIPE }, categories);
+const result = await createGeminiAI(apiKey, process.env.GEMINI_MODEL || DEFAULT_MODEL).extract({ kind: 'text', text: RECIPE }, categories);
 console.log(JSON.stringify(result, null, 2));

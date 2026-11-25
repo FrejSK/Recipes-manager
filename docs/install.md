@@ -11,16 +11,20 @@ $env:Path = "C:\Program Files\nodejs;" + $env:Path
 cd C:\Users\mecar\Documents\Projects\Recipes-manager
 ```
 
+Príkazy `npm` a `npx` píšeme ako `npm.cmd` a `npx.cmd`. PowerShell by inak
+spustil skripty `npm.ps1`/`npx.ps1`, ktoré predvolené nastavenie Windows
+(execution policy) blokuje; verzie `.cmd` fungujú bez zmeny nastavení.
+
 Každá časť nižšie, ktorá spúšťa príkazy, začína vlastným `cd` s celou cestou
 (do `app` alebo `server`), takže ju môžeš spustiť aj v novom okne, len po
 riadku s `$env:Path` vyššie.
 
-Príkazy `eas` spúšťame cez `npx eas-cli@latest` (samotné `npx eas` nefunguje,
+Príkazy `eas` spúšťame cez `npx.cmd eas-cli@latest` (samotné `npx.cmd eas` nefunguje,
 balík sa volá `eas-cli`). Aby si to nemusel stále písať, v relácii môžeš
 použiť alias:
 
 ```powershell
-function eas { npx eas-cli@latest @args }
+function eas { npx.cmd eas-cli@latest @args }
 ```
 
 Ďalej v texte píšem krátko `eas ...`.
@@ -34,7 +38,7 @@ function eas { npx eas-cli@latest @args }
   - `EXTRACT_URL`: adresa Workera bez koncového `/` a bez `/extract`
     (napr. `https://recepty-extract.x.workers.dev`),
   - `APP_TOKEN`: token, ktorý si uložil v kroku 4 v `server/README.md`.
-- Závislosti: `npm install` v koreni repozitára.
+- Závislosti: `npm.cmd install` v koreni repozitára.
 
 Poznámka: `eas login` vytvorí priečinok `%USERPROFILE%\.expo`. Je zapísaný
 v `INSTALLED.md` aj s príkazom na odstránenie.
@@ -47,8 +51,8 @@ nestačí, lebo používame natívne moduly (`expo-share-intent`).
 
 ```powershell
 cd C:\Users\mecar\Documents\Projects\Recipes-manager\app
-npx eas-cli@latest login
-npx eas-cli@latest init
+npx.cmd eas-cli@latest login
+npx.cmd eas-cli@latest init
 ```
 
 `eas init` vytvorí projekt na expo.dev a zapíše `extra.eas.projectId` (a
@@ -62,7 +66,7 @@ git commit -m "chore(app): add EAS projectId"
 Zostavenie:
 
 ```powershell
-npx eas-cli@latest build --profile development --platform android
+npx.cmd eas-cli@latest build --profile development --platform android
 ```
 
 Po dokončení (niekoľko minút, na bezplatnom pláne môže byť fronta) dostaneš
@@ -80,7 +84,7 @@ Do `.env` doplň `EXPO_PUBLIC_EXTRACT_URL` a `EXPO_PUBLIC_APP_TOKEN`
 (súbor je mimo gitu). Potom:
 
 ```powershell
-npx expo start --dev-client
+npx.cmd expo start --dev-client
 ```
 
 Telefón musí byť v rovnakej Wi-Fi ako počítač. Otvor nainštalovanú
@@ -100,17 +104,17 @@ v histórii PowerShellu.
 
 ```powershell
 cd C:\Users\mecar\Documents\Projects\Recipes-manager\app
-npx eas-cli@latest env:create --environment preview
+npx.cmd eas-cli@latest env:create --environment preview
 ```
 
 Príkaz sa pýta interaktívne na názov (`EXPO_PUBLIC_EXTRACT_URL`, potom
 `EXPO_PUBLIC_APP_TOKEN`), hodnotu a viditeľnosť. Pre `EXPO_PUBLIC_*` premenné
 EAS nepovolí viditeľnosť `secret`, pretože sa tak či tak dostanú do
 aplikácie; vyber `sensitive` alebo `plain text`. Presné voľby si pozri cez
-`npx eas-cli@latest env:create --help` (po `eas login`). Zoznam overíš:
+`npx.cmd eas-cli@latest env:create --help` (po `eas login`). Zoznam overíš:
 
 ```powershell
-npx eas-cli@latest env:list --environment preview
+npx.cmd eas-cli@latest env:list --environment preview
 ```
 
 Pozor: token je v APK vždy čitateľný pre toho, kto APK rozbalí. Preto máme na
@@ -121,13 +125,13 @@ serveri denný limit a token vieme vymeniť (pozri nižšie).
 Profil `preview` v `app/eas.json` má `"environment": "preview"`, takže build
 automaticky použije premenné z kroku 3.1. (Pole `environment` v profile
 podporujú novšie verzie eas-cli; ak by ho tvoja verzia nepoznala, aktualizuj
-cez `npx eas-cli@latest`, ktoré berie vždy najnovšiu.)
+cez `npx.cmd eas-cli@latest`, ktoré berie vždy najnovšiu.)
 
 ### 3.3 Zostavenie a inštalácia
 
 ```powershell
 cd C:\Users\mecar\Documents\Projects\Recipes-manager\app
-npx eas-cli@latest build --profile preview --platform android
+npx.cmd eas-cli@latest build --profile preview --platform android
 ```
 
 1. Po dokončení otvor odkaz (alebo ho nájdeš na https://expo.dev v projekte
@@ -154,7 +158,7 @@ nový build.
 
    ```powershell
    cd C:\Users\mecar\Documents\Projects\Recipes-manager\app
-   npx eas-cli@latest build --profile preview --platform android
+   npx.cmd eas-cli@latest build --profile preview --platform android
    ```
 
 3. APK stiahni a nainštaluj ako v časti 3.3 cez starú aplikáciu (prepíše ju,
@@ -173,14 +177,14 @@ Pred každou aktualizáciou odporúčame urobiť v aplikácii export zálohy.
    ```powershell
    cd C:\Users\mecar\Documents\Projects\Recipes-manager\server
    node -e "console.log(crypto.randomUUID()+crypto.randomUUID())"
-   npx wrangler secret put APP_TOKEN
+   npx.cmd wrangler secret put APP_TOKEN
    ```
 
 2. Aktualizuj premennú v EAS (hodnotu opäť zadaj na výzvu, nie v príkaze):
 
    ```powershell
    cd C:\Users\mecar\Documents\Projects\Recipes-manager\app
-   npx eas-cli@latest env:update --environment preview
+   npx.cmd eas-cli@latest env:update --environment preview
    ```
 
    Ak `env:update` nevyhovuje, premennú zmaž (`env:delete`) a vytvor znova
@@ -207,5 +211,7 @@ Pred každou aktualizáciou odporúčame urobiť v aplikácii export zálohy.
   pre Android.
 - Záloha sa ako "naposledy urobená" počíta, keď sa zatvorí zdieľací dialóg,
   aj keby sa súbor nikam neuložil.
-- Každý import cez Claude stojí pár centov.
+- Každý import volá Gemini. Bezplatný plán Google AI Studio má denný limit
+  požiadaviek a Google môže odoslaný obsah použiť na zlepšovanie svojich
+  produktov (pozri `server/README.md`).
 - Server má denný limit 50 importov.

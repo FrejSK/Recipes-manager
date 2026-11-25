@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ExtractedRecipe } from '@recipes/core';
-import { createClaudeAI, type AiInput, type ParseClient, type RecipeAI } from '../src/ai';
+import { createGeminiAI, DEFAULT_MODEL, type AiInput, type GenerateClient, type RecipeAI } from '../src/ai';
 import { extract, resolvePhotoUrl } from '../src/extract';
 import { fetchPage, MAX_PAGE_BYTES } from '../src/fetch-page';
 import { htmlToText } from '../src/html-text';
@@ -143,14 +143,14 @@ describe('extract', () => {
   });
 });
 
-type ParseParams = Parameters<ParseClient['messages']['parse']>[0];
-type ParseResponse = Awaited<ReturnType<ParseClient['messages']['parse']>>;
+type GeminiParams = Parameters<GenerateClient['models']['generateContent']>[0];
+type GeminiResponse = Awaited<ReturnType<GenerateClient['models']['generateContent']>>;
 
-function fakeClient(respond: () => Promise<ParseResponse>) {
-  const params: ParseParams[] = [];
-  const client: ParseClient = {
-    messages: {
-      async parse(p) {
+function fakeClient(respond: () => Promise<GeminiResponse>) {
+  const params: GeminiParams[] = [];
+  const client: GenerateClient = {
+    models: {
+      async generateContent(p) {
         params.push(p);
         return respond();
       },
@@ -159,130 +159,208 @@ function fakeClient(respond: () => Promise<ParseResponse>) {
   return { client, params };
 }
 
-describe('createClaudeAI', () => {
+/** A successful Gemini response whose text is `body` (JSON-encoded unless already a string). */
+const reply = (body: unknown): GeminiResponse => ({
+  text: typeof body === 'string' ? body : JSON.stringify(body),
+  candidates: [{ finishReason: 'STOP' }],
+});
+
+const ok = () => fakeClient(async () => reply({ ...recipe, isRecipe: true }));
+const failed = { ok: false, error: 'ai_failed' };
+
+describe('createGeminiAI', () => {
+  // Failure paths log by design; keep the test output clean.
+  beforeEach(() => {
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+  });
+  afterEach(() => vi.restoreAllMocks());
+
+  it('uses gemini-3.8-flash by default', () => {
+    expect(DEFAULT_MODEL).toBe('gemini-3.8-flash');
+  });
+
   it('returns the recipe without isRecipe on success', async () => {
-    const { client } = fakeClient(async () => ({
-      stop_reason: 'end_turn',
-      parsed_output: { ...recipe, isRecipe: true },
-    }));
-    const r = await createClaudeAI('key', client).extract({ kind: 'text', text: 'Recept' }, categories);
+    const { client } = ok();
+    const r = await createGeminiAI('key', 'm', client).extract({ kind: 'text', text: 'Recept' }, categories);
     expect(r).toEqual({ ok: true, recipe });
     expect(r.ok && 'isRecipe' in r.recipe).toBe(false);
   });
 
-  it('sends model, effort, schema, system prompt and categories in the user text', async () => {
-    const { client, params } = fakeClient(async () => ({
-      stop_reason: 'end_turn',
-      parsed_output: { ...recipe, isRecipe: true },
-    }));
-    await createClaudeAI('key', client).extract({ kind: 'text', text: 'Recept na guláš' }, categories);
+  it('sends model, system prompt, JSON mime type, schema and categories in the user text', async () => {
+    const { client, params } = ok();
+    await createGeminiAI('key', 'gemini-test-model', client).extract({ kind: 'text', text: 'Recept na guláš' }, categories);
+    expect(params).toHaveLength(1);
     const p = params[0];
-    expect(p.model).toBe('claude-opus-5-5');
-    expect(p.max_tokens).toBe(16000);
-    expect(p.output_config.effort).toBe('low');
-    expect(p.output_config.format.type).toBe('json_schema');
-    expect(p.system).toBe(SYSTEM_PROMPT);
+    expect(p.model).toBe('gemini-test-model');
+    expect(p.config.systemInstruction).toBe(SYSTEM_PROMPT);
     expect(SYSTEM_PROMPT).not.toContain('Polievky');
-    expect(p).not.toHaveProperty('thinking');
-    expect(p).not.toHaveProperty('temperature');
-    expect(p.messages).toHaveLength(1);
-    expect(p.messages[0].role).toBe('user');
-    const content = p.messages[0].content;
-    expect(Array.isArray(content)).toBe(true);
-    const blocks = content as Exclude<typeof content, string>;
-    expect(blocks).toHaveLength(1);
-    const text = blocks[0].type === 'text' ? blocks[0].text : '';
-    expect(text).toContain('Recept na guláš');
-    expect(text).toContain('"Polievky"');
-    expect(text).toContain('"Hlavné jedlá"');
+    expect(p.config.responseMimeType).toBe('application/json');
+    expect(p.config.responseJsonSchema).toBeTypeOf('object');
+    expect(p.config).not.toHaveProperty('responseSchema');
+    expect(p.contents).toHaveLength(1);
+    expect(p.contents[0].role).toBe('user');
+    const parts = p.contents[0].parts ?? [];
+    expect(parts).toHaveLength(1);
+    expect(Object.keys(parts[0])).toEqual(['text']);
+    expect(parts[0].text).toContain('Recept na guláš');
+    expect(parts[0].text).toContain('"Polievky"');
+    expect(parts[0].text).toContain('"Hlavné jedlá"');
   });
 
-  it('sends images as base64 blocks in order, followed by an instruction text block', async () => {
-    const { client, params } = fakeClient(async () => ({
-      stop_reason: 'end_turn',
-      parsed_output: { ...recipe, isRecipe: true },
-    }));
-    await createClaudeAI('key', client).extract(
-      { kind: 'images', images: [{ mediaType: 'image/png', data: 'AAA' }, { mediaType: 'image/webp', data: 'BBB' }] },
+  it('falls back to DEFAULT_MODEL when the model is missing or empty', async () => {
+    const { client, params } = ok();
+    await createGeminiAI('key', undefined, client).extract({ kind: 'text', text: 'x' }, []);
+    await createGeminiAI('key', '', client).extract({ kind: 'text', text: 'x' }, []);
+    expect(params.map((p) => p.model)).toEqual([DEFAULT_MODEL, DEFAULT_MODEL]);
+  });
+
+  it('sends images as inlineData parts in order with their mime types, followed by one text part', async () => {
+    const { client, params } = ok();
+    await createGeminiAI('key', 'm', client).extract(
+      {
+        kind: 'images',
+        images: [
+          { mediaType: 'image/png', data: 'AAA' },
+          { mediaType: 'image/webp', data: 'BBB' },
+          { mediaType: 'image/jpeg', data: 'CCC' },
+        ],
+      },
       categories,
     );
-    const blocks = params[0].messages[0].content as Exclude<ParseParams['messages'][0]['content'], string>;
-    expect(blocks.map((b) => b.type)).toEqual(['image', 'image', 'text']);
-    expect(blocks[0]).toEqual({ type: 'image', source: { type: 'base64', media_type: 'image/png', data: 'AAA' } });
-    expect(blocks[1]).toEqual({ type: 'image', source: { type: 'base64', media_type: 'image/webp', data: 'BBB' } });
-    expect(blocks[2].type === 'text' && blocks[2].text).toContain('"Polievky"');
+    const parts = params[0].contents[0].parts ?? [];
+    expect(parts).toHaveLength(4);
+    expect(parts[0]).toEqual({ inlineData: { mimeType: 'image/png', data: 'AAA' } });
+    expect(parts[1]).toEqual({ inlineData: { mimeType: 'image/webp', data: 'BBB' } });
+    expect(parts[2]).toEqual({ inlineData: { mimeType: 'image/jpeg', data: 'CCC' } });
+    expect(Object.keys(parts[3])).toEqual(['text']);
+    expect(parts[3].text).toContain('screenshots');
+    expect(parts[3].text).toContain('"Polievky"');
   });
 
   it('isRecipe false → not_a_recipe', async () => {
-    const { client } = fakeClient(async () => ({
-      stop_reason: 'end_turn',
-      parsed_output: { ...recipe, isRecipe: false },
-    }));
-    expect(await createClaudeAI('key', client).extract({ kind: 'text', text: 'x' }, [])).toEqual({
+    const { client } = fakeClient(async () => reply({ ...recipe, isRecipe: false }));
+    expect(await createGeminiAI('key', 'm', client).extract({ kind: 'text', text: 'x' }, [])).toEqual({
       ok: false,
       error: 'not_a_recipe',
     });
   });
 
-  it('refusal → ai_failed', async () => {
-    const { client } = fakeClient(async () => ({ stop_reason: 'refusal', parsed_output: null }));
-    expect(await createClaudeAI('key', client).extract({ kind: 'text', text: 'x' }, [])).toEqual({
-      ok: false,
-      error: 'ai_failed',
-    });
+  it('text that is not valid JSON → ai_failed', async () => {
+    for (const text of ['not json', '{"title": "Guláš", ', '```json\n{}\n```']) {
+      const { client } = fakeClient(async () => reply(text));
+      expect(await createGeminiAI('key', 'm', client).extract({ kind: 'text', text: 'x' }, [])).toEqual(failed);
+    }
   });
 
-  it('refusal with a parsed output still → ai_failed', async () => {
-    const { client } = fakeClient(async () => ({
-      stop_reason: 'refusal',
-      parsed_output: { ...recipe, isRecipe: true },
-    }));
-    expect(await createClaudeAI('key', client).extract({ kind: 'text', text: 'x' }, [])).toEqual({
-      ok: false,
-      error: 'ai_failed',
-    });
+  it('JSON that misses required fields or has wrong types → ai_failed, never a partial recipe', async () => {
+    const { isRecipe: _drop, ...noIsRecipe } = { ...recipe, isRecipe: true };
+    const { steps: _steps, ...noSteps } = { ...recipe, isRecipe: true };
+    const bodies: unknown[] = [
+      { title: 'Guláš', isRecipe: true },
+      noIsRecipe,
+      noSteps,
+      { ...recipe, isRecipe: true, servings: 2.5 },
+      { ...recipe, isRecipe: true, servings: '4' },
+      { ...recipe, isRecipe: true, ingredientGroups: [{ name: null, items: [{ amount: 1, amountMax: null, unit: 'cup', name: 'x', note: null }] }] },
+      null,
+      [],
+      42,
+    ];
+    for (const body of bodies) {
+      const { client } = fakeClient(async () => reply(body));
+      expect(await createGeminiAI('key', 'm', client).extract({ kind: 'text', text: 'x' }, [])).toEqual(failed);
+    }
   });
 
-  it('null parsed_output → ai_failed', async () => {
-    const { client } = fakeClient(async () => ({ stop_reason: 'end_turn', parsed_output: null }));
-    expect(await createClaudeAI('key', client).extract({ kind: 'text', text: 'x' }, [])).toEqual({
-      ok: false,
-      error: 'ai_failed',
-    });
+  it('empty or missing text (e.g. blocked, no candidates) → ai_failed', async () => {
+    const responses: GeminiResponse[] = [
+      { text: undefined, candidates: [] },
+      { text: undefined, promptFeedback: { blockReason: 'PROHIBITED_CONTENT' } },
+      { text: '', candidates: [{ finishReason: 'STOP' }] },
+      {},
+    ];
+    for (const res of responses) {
+      const { client } = fakeClient(async () => res);
+      expect(await createGeminiAI('key', 'm', client).extract({ kind: 'text', text: 'x' }, [])).toEqual(failed);
+    }
+  });
+
+  it('a prompt block reason or a finish reason other than STOP → ai_failed, even with valid JSON text', async () => {
+    const body = JSON.stringify({ ...recipe, isRecipe: true });
+    const responses: GeminiResponse[] = [
+      { text: body, candidates: [{ finishReason: 'SAFETY' }] },
+      { text: body, candidates: [{ finishReason: 'MAX_TOKENS' }] },
+      { text: body, candidates: [{ finishReason: 'STOP' }], promptFeedback: { blockReason: 'SAFETY' } },
+    ];
+    for (const res of responses) {
+      const { client } = fakeClient(async () => res);
+      expect(await createGeminiAI('key', 'm', client).extract({ kind: 'text', text: 'x' }, [])).toEqual(failed);
+    }
   });
 
   it('SDK throw → ai_failed', async () => {
     const { client } = fakeClient(async () => {
       throw new Error('overloaded');
     });
-    expect(await createClaudeAI('key', client).extract({ kind: 'text', text: 'x' }, [])).toEqual({
-      ok: false,
-      error: 'ai_failed',
-    });
+    expect(await createGeminiAI('key', 'm', client).extract({ kind: 'text', text: 'x' }, [])).toEqual(failed);
   });
 
-  it('output schema has no JSON-schema keywords that structured outputs reject', async () => {
-    const { client, params } = fakeClient(async () => ({ stop_reason: 'end_turn', parsed_output: null }));
-    await createClaudeAI('key', client).extract({ kind: 'text', text: 'x' }, []);
-    const schema = params[0].output_config.format.schema;
-    const banned = new Set([
-      'minimum', 'maximum', 'exclusiveMinimum', 'exclusiveMaximum', 'multipleOf',
-      'minLength', 'maxLength', 'pattern', 'maxItems', 'uniqueItems', 'format',
+  it('missing API key → ai_failed per request, without calling the client or throwing at creation', async () => {
+    const { client, params } = ok();
+    expect(() => createGeminiAI('')).not.toThrow();
+    expect(await createGeminiAI('').extract({ kind: 'text', text: 'x' }, [])).toEqual(failed);
+    expect(await createGeminiAI(undefined as unknown as string).extract({ kind: 'text', text: 'x' }, [])).toEqual(failed);
+    expect(await createGeminiAI('', 'm', client).extract({ kind: 'text', text: 'x' }, [])).toEqual(failed);
+    expect(params).toEqual([]);
+  });
+
+  it('response schema: required fields, unit enum, nullable integers, only keywords Gemini supports', async () => {
+    const { client, params } = ok();
+    await createGeminiAI('key', 'm', client).extract({ kind: 'text', text: 'x' }, []);
+    const schema = params[0].config.responseJsonSchema as Record<string, unknown>;
+    expect(schema.type).toBe('object');
+    expect(schema.required).toEqual(expect.arrayContaining(['isRecipe', 'ingredientGroups', 'title', 'steps']));
+    const props = schema.properties as Record<string, Record<string, unknown>>;
+    expect(props.servings).toEqual({ anyOf: [{ type: 'integer' }, { type: 'null' }] });
+    expect(props.title).toEqual({ type: 'string' });
+    expect(props.isRecipe).toEqual({ type: 'boolean' });
+    const item = ((props.ingredientGroups.items as Record<string, unknown>).properties as Record<string, Record<string, unknown>>)
+      .items.items as Record<string, unknown>;
+    const itemProps = item.properties as Record<string, Record<string, unknown>>;
+    expect(item.required).toEqual(['amount', 'amountMax', 'unit', 'name', 'note']);
+    expect(itemProps.amount).toEqual({ anyOf: [{ type: 'number' }, { type: 'null' }] });
+    expect(itemProps.note).toEqual({ anyOf: [{ type: 'string' }, { type: 'null' }] });
+    const unit = itemProps.unit.anyOf as { type: string; enum?: string[] }[];
+    expect(unit.map((u) => u.type)).toEqual(['string', 'null']);
+    expect(unit[0].enum).toContain('CL');
+    expect(unit[0].enum).toContain('strucik');
+
+    // Keywords from the responseJsonSchema list in the @google/genai typings; anything else (e.g. $schema) is dropped.
+    const supported = new Set([
+      '$id', '$defs', '$ref', '$anchor', 'type', 'format', 'title', 'description', 'enum', 'items', 'prefixItems',
+      'minItems', 'maxItems', 'minimum', 'maximum', 'anyOf', 'oneOf', 'properties', 'additionalProperties',
+      'required', 'propertyOrdering',
     ]);
     const found: string[] = [];
-    const walk = (v: unknown, path: string) => {
+    const walk = (v: unknown, path: string, inProps = false) => {
       if (Array.isArray(v)) v.forEach((x, i) => walk(x, `${path}[${i}]`));
       else if (v && typeof v === 'object') {
         for (const [k, x] of Object.entries(v)) {
-          if (banned.has(k)) found.push(`${path}.${k}`);
-          if (k !== 'description' && k !== 'enum' && k !== 'required') walk(x, `${path}.${k}`);
+          if (inProps) {
+            walk(x, `${path}.${k}`);
+            continue;
+          }
+          if (!supported.has(k)) found.push(`${path}.${k}`);
+          if (k === 'type' && typeof x !== 'string') found.push(`${path}.type(non-string)`);
+          if ((k === 'minimum' || k === 'maximum') && Math.abs(x as number) >= Number.MAX_SAFE_INTEGER) {
+            found.push(`${path}.${k}(safe-integer bound)`);
+          }
+          if (k !== 'enum' && k !== 'required' && k !== 'description') walk(x, `${path}.${k}`, k === 'properties');
         }
       }
     };
     walk(schema, '$');
     expect(found).toEqual([]);
-    const servings = (schema.properties as Record<string, { anyOf: { type: string }[] }>).servings;
-    expect(servings.anyOf.map((s) => s.type)).toEqual(['integer', 'null']);
   });
 });
 
@@ -418,26 +496,46 @@ describe('photo URL resolution', () => {
   });
 });
 
-describe('createClaudeAI logging', () => {
+describe('createGeminiAI logging', () => {
   afterEach(() => vi.restoreAllMocks());
 
   it('logs the error class and HTTP status of an SDK failure, nothing else', async () => {
     const log = vi.spyOn(console, 'error').mockImplementation(() => {});
-    class RateLimitError extends Error {
+    class ApiError extends Error {
       status = 429;
     }
     const { client } = fakeClient(async () => {
-      throw new RateLimitError('429 {"error":"rate limited"} key sk-ant-secret');
+      throw new ApiError('429 {"error":"rate limited"} key AIza-secret');
     });
-    await createClaudeAI('sk-ant-secret', client).extract({ kind: 'text', text: 'tajný recept' }, []);
-    expect(log).toHaveBeenCalledWith('ai_failed', { error: 'RateLimitError', status: 429 });
+    await createGeminiAI('AIza-secret', 'm', client).extract({ kind: 'text', text: 'tajný recept' }, []);
+    expect(log).toHaveBeenCalledWith('ai_failed', { error: 'ApiError', status: 429 });
     expect(JSON.stringify(log.mock.calls)).not.toMatch(/secret|tajný/);
   });
 
-  it('logs stop_reason when there is no usable output', async () => {
+  it('logs finish and block reasons when there is no usable output', async () => {
     const log = vi.spyOn(console, 'error').mockImplementation(() => {});
-    const { client } = fakeClient(async () => ({ stop_reason: 'max_tokens', parsed_output: null }));
-    await createClaudeAI('key', client).extract({ kind: 'text', text: 'x' }, []);
-    expect(log).toHaveBeenCalledWith('ai_failed', { stop_reason: 'max_tokens' });
+    const blocked = fakeClient(async () => ({ promptFeedback: { blockReason: 'SAFETY' } }));
+    await createGeminiAI('key', 'm', blocked.client).extract({ kind: 'text', text: 'x' }, []);
+    expect(log).toHaveBeenLastCalledWith('ai_failed', { finishReason: undefined, blockReason: 'SAFETY' });
+    const truncated = fakeClient(async () => ({ text: '{"title":"Gul', candidates: [{ finishReason: 'MAX_TOKENS' }] }));
+    await createGeminiAI('key', 'm', truncated.client).extract({ kind: 'text', text: 'x' }, []);
+    expect(log).toHaveBeenLastCalledWith('ai_failed', { finishReason: 'MAX_TOKENS', blockReason: undefined });
+  });
+
+  it('logs only a reason, never the content, for invalid JSON or a schema mismatch', async () => {
+    const log = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const bad = fakeClient(async () => reply('tajný recept, nie JSON'));
+    await createGeminiAI('key', 'm', bad.client).extract({ kind: 'text', text: 'x' }, []);
+    expect(log).toHaveBeenLastCalledWith('ai_failed', { reason: 'invalid_json' });
+    const partial = fakeClient(async () => reply({ title: 'tajný recept', isRecipe: true }));
+    await createGeminiAI('key', 'm', partial.client).extract({ kind: 'text', text: 'x' }, []);
+    expect(log).toHaveBeenLastCalledWith('ai_failed', { reason: 'schema_mismatch' });
+    expect(JSON.stringify(log.mock.calls)).not.toMatch(/tajný/);
+  });
+
+  it('logs a missing API key without the key itself', async () => {
+    const log = vi.spyOn(console, 'error').mockImplementation(() => {});
+    await createGeminiAI('').extract({ kind: 'text', text: 'x' }, []);
+    expect(log).toHaveBeenCalledWith('ai_failed', { reason: 'missing_api_key' });
   });
 });

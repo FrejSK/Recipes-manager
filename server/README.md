@@ -1,6 +1,6 @@
 # Server (Cloudflare Worker `recepty-extract`)
 
-Malý server, ktorý aplikácii extrahuje recepty cez Claude API. Beží ako
+Malý server, ktorý aplikácii extrahuje recepty cez Gemini API od Google. Beží ako
 Cloudflare Worker (pre Java vývojára: niečo ako serverless funkcia, ktorú
 nahráš príkazom a Cloudflare ju prevádzkuje). Všetky príkazy sa spúšťajú
 z priečinka `server/`.
@@ -12,20 +12,27 @@ $env:Path = "C:\Program Files\nodejs;" + $env:Path
 cd server
 ```
 
+Príkazy `npm` a `npx` píšeme ako `npm.cmd` a `npx.cmd`. PowerShell by inak
+spustil skripty `npm.ps1`/`npx.ps1`, ktoré predvolené nastavenie Windows
+(execution policy) blokuje; verzie `.cmd` fungujú bez zmeny nastavení.
+
 ## Predpoklady
 
 - Node.js (inštalácia je popísaná v `INSTALLED.md` v koreni repozitára).
 - Bezplatný účet na Cloudflare (https://dash.cloudflare.com/sign-up).
-- API kľúč od Anthropic (https://console.anthropic.com) s nastaveným
-  mesačným limitom výdavkov, odporúčame 5 $.
-- Závislosti nainštalované: `npm install` v koreni repozitára.
+- API kľúč z Google AI Studio (https://aistudio.google.com/apikey). Stačí
+  bezplatný plán; má denný limit požiadaviek. Pozor: pri bezplatnom pláne
+  môže Google odoslaný obsah (texty, odkazy a screenshoty receptov) použiť na
+  zlepšovanie svojich produktov. Ak to nechceš, zapni v AI Studio platený
+  plán (billing) a nastav si limit výdavkov.
+- Závislosti nainštalované: `npm.cmd install` v koreni repozitára.
 
 ## Prvé nasadenie
 
 1. Prihlásenie do Cloudflare (otvorí prehliadač):
 
    ```powershell
-   npx wrangler login
+   npx.cmd wrangler login
    ```
 
    Pozor: prihlasovacia konfigurácia sa uloží do profilu používateľa, na
@@ -35,24 +42,24 @@ cd server
 2. Vytvorenie KV úložiska pre denné limity:
 
    ```powershell
-   npx wrangler kv namespace create LIMITS
+   npx.cmd wrangler kv namespace create LIMITS
    ```
 
    Vo výpise nájdi `id = "..."` a vlož ho v `wrangler.toml` namiesto
    `TODO_KV_NAMESPACE_ID`.
 
-3. Uloženie API kľúča od Anthropic ako tajomstva (príkaz si vypýta hodnotu,
+3. Uloženie API kľúča z Google AI Studio ako tajomstva (príkaz si vypýta hodnotu,
    vlož ju a potvrď Enterom):
 
    ```powershell
-   npx wrangler secret put ANTHROPIC_API_KEY
+   npx.cmd wrangler secret put GEMINI_API_KEY
    ```
 
 4. Vygenerovanie vlastného tokenu pre aplikáciu a jeho uloženie:
 
    ```powershell
    node -e "console.log(crypto.randomUUID()+crypto.randomUUID())"
-   npx wrangler secret put APP_TOKEN
+   npx.cmd wrangler secret put APP_TOKEN
    ```
 
    Vypísanú hodnotu si ulož bokom (nikam ju necommituj): rovnaká patrí do
@@ -61,7 +68,7 @@ cd server
 5. Nasadenie:
 
    ```powershell
-   npm run deploy
+   npm.cmd run deploy
    ```
 
    Na konci sa vypíše URL v tvare `https://recepty-extract.<účet>.workers.dev`.
@@ -77,7 +84,7 @@ curl.exe -s -i -X POST <URL>/extract
 ```
 
 S tokenom a prázdnym vstupom, očakávaš HTTP 400 a `{"error":"bad_request"}`
-(Claude sa nevolá, nič sa neplatí):
+(Gemini sa nevolá, nič sa nemíňa):
 
 ```powershell
 curl.exe -s -i -X POST <URL>/extract -H "Authorization: Bearer <token>" -H "Content-Type: application/json" -d '{\"kind\":\"text\",\"text\":\"\",\"categories\":[]}'
@@ -86,18 +93,19 @@ curl.exe -s -i -X POST <URL>/extract -H "Authorization: Bearer <token>" -H "Cont
 (V PowerShelli 5.1 treba v `-d` escapovať úvodzovky ako `\"`. V Git Bashi
 použi bežné `'{"kind":"text","text":"","categories":[]}'`.)
 
-## Voliteľný platený test (smoke test)
+## Voliteľný test so skutočným Gemini (smoke test)
 
-Zavolá skutočné Claude API, stojí približne jeden cent. Spúšťaj len vedome.
+Zavolá skutočné Gemini API. Na bezplatnom pláne sa započíta do denného
+limitu, na platenom sa platí podľa spotreby. Spúšťaj len vedome.
 
 Kľúč patrí do súboru `server/.dev.vars` (ten istý, ktorý používa
-`npm run dev`, pozri Lokálny vývoj). Súbor je v `.gitignore`, takže sa
+`npm.cmd run dev`, pozri Lokálny vývoj). Súbor je v `.gitignore`, takže sa
 nedostane do gitu. Vytvor ho v editore (napr. Poznámkový blok alebo VS Code),
-nie príkazom typu `echo`, a vlož do neho riadok `ANTHROPIC_API_KEY=` s
+nie príkazom typu `echo`, a vlož do neho riadok `GEMINI_API_KEY=` s
 tvojím kľúčom. Potom z `server/`:
 
 ```powershell
-npx tsx --env-file=.dev.vars scripts/smoke.ts
+npx.cmd tsx --env-file=.dev.vars scripts/smoke.ts
 ```
 
 Nikdy nevkladaj kľúče priamo do príkazu: príkazový riadok sa ukladá do
@@ -110,16 +118,19 @@ Keď skúšaš import v aplikácii, nechaj v druhom okne PowerShellu (v `server/
 bežať živý výpis logov Workera:
 
 ```powershell
-npx wrangler tail
+npx.cmd wrangler tail
 ```
 
 Pri chybe tam uvidíš riadok `ai_failed` alebo `extract_failed` s typom chyby,
-HTTP stavom a pri AI aj `stop_reason`. Obsah receptov, tokeny ani kľúče sa
-nelogujú. Výpis ukončíš klávesmi Ctrl+C.
+HTTP stavom a pri AI aj `finishReason`/`blockReason` (prečo Gemini skončilo
+alebo odpoveď zablokovalo) či `reason` (napr. `invalid_json`,
+`missing_api_key`). Stav 429 znamená prekročený limit požiadaviek Gemini
+(na bezplatnom pláne je nízky).
+Obsah receptov, tokeny ani kľúče sa nelogujú. Výpis ukončíš klávesmi Ctrl+C.
 
 V dashboarde Cloudflare (Workers & Pages, `recepty-extract`, Metrics) si
 občas pozri CPU time na požiadavku. Bezplatný plán má na jednu požiadavku
-nízky limit CPU času (čakanie na Claude API sa doňho nepočíta, spracovanie
+nízky limit CPU času (čakanie na Gemini API sa doňho nepočíta, spracovanie
 veľkej stránky áno). Ak importy zlyhávajú a v `wrangler tail` sa objavujú
 chyby, ktoré spomínajú CPU alebo prekročené limity (napr. „exceeded CPU“,
 „Exceeded resources“), prepni Worker na plán Workers Paid (približne 5 $
@@ -127,12 +138,26 @@ mesačne) v dashboarde v časti Workers & Pages, Plans.
 
 ## Výmena tajomstiev
 
-- `APP_TOKEN`: vygeneruj nový (krok 4), spusti `npx wrangler secret put APP_TOKEN`
+- `APP_TOKEN`: vygeneruj nový (krok 4), spusti `npx.cmd wrangler secret put APP_TOKEN`
   a potom aplikáciu znova zostav s novým `EXPO_PUBLIC_APP_TOKEN`. Kým to
   neurobíš, staré zostavenia aplikácie dostanú 401.
-- `ANTHROPIC_API_KEY`: vytvor nový kľúč v konzole Anthropic a spusti
-  `npx wrangler secret put ANTHROPIC_API_KEY`. Aplikáciu netreba znova
-  zostavovať.
+- `GEMINI_API_KEY`: vytvor nový kľúč v Google AI Studio
+  (https://aistudio.google.com/apikey), spusti
+  `npx.cmd wrangler secret put GEMINI_API_KEY` a starý kľúč v AI Studio zmaž.
+  Aplikáciu netreba znova zostavovať.
+
+## Zmena modelu
+
+Model je v `wrangler.toml` v premennej `GEMINI_MODEL` (predvolene
+`gemini-3.8-flash`). Názvy modelov sú na https://ai.google.dev/gemini-api/docs/models.
+Zmeň hodnotu a znova nasaď:
+
+```powershell
+npm.cmd run deploy
+```
+
+Kód ani aplikáciu netreba meniť. Pre lokálny vývoj a smoke test môžeš
+pridať riadok `GEMINI_MODEL=` aj do `.dev.vars`.
 
 ## Lokálny vývoj
 
@@ -140,11 +165,11 @@ mesačne) v dashboarde v časti Workers & Pages, Plans.
 Copy-Item .dev.vars.example .dev.vars
 ```
 
-Do `.dev.vars` doplň `ANTHROPIC_API_KEY=` a `APP_TOKEN=` (súbor je mimo gitu).
+Do `.dev.vars` doplň `GEMINI_API_KEY=` a `APP_TOKEN=` (súbor je mimo gitu).
 Potom:
 
 ```powershell
-npm run dev
+npm.cmd run dev
 ```
 
 Server beží na `http://localhost:8787`.
@@ -154,7 +179,7 @@ Server beží na `http://localhost:8787`.
 Najprv, kým je ešte Node nainštalovaný, zmaž Worker z Cloudflare:
 
 ```powershell
-npx wrangler delete
+npx.cmd wrangler delete
 ```
 
 Potom odstráň prihlasovacie priečinky:

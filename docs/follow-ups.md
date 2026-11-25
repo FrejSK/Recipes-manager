@@ -1,10 +1,10 @@
 # Čo ostáva po implementácii
 
-Stav k 2026-11-24, vetva `feature/recipes-app`. Všetkých 17 úloh plánu je hotových a skontrolovaných. Testy prechádzajú: core 32, server 52, app 151.
+Stav k 2026-11-24, vetva `feature/recipes-app`. Od 2026-11-25 server namiesto Claude volá Gemini (Google AI Studio). Všetkých 17 úloh plánu je hotových a skontrolovaných. Testy prechádzajú: core 32, server 52, app 151.
 
 ## Kroky, ktoré musí urobiť vývojár (účty, telefón, platené volania)
 
-1. **Test Claude API (platený, asi 1 cent).** V `server/` vlož kľúč do `.dev.vars`. Potom spusti `npx tsx --env-file=.dev.vars scripts/smoke.ts`. Over tieto položky:
+1. **Test Gemini API (na bezplatnom pláne v rámci denného limitu).** V `server/` vlož kľúč `GEMINI_API_KEY` do `.dev.vars`. Potom spusti `npx.cmd tsx --env-file=.dev.vars scripts/smoke.ts`. Over tieto položky:
    - „½ lyžičky soli“ → `amount: 0.5, unit: CL`
    - „2–3 strúčiky“ → `amount: 2, amountMax: 3, unit: strucik`
    - soľ podľa chuti → `amount: null`
@@ -17,7 +17,7 @@ Stav k 2026-11-24, vetva `feature/recipes-app`. Všetkých 17 úloh plánu je ho
    - Vytvor, uprav a zmaž recept, pridaj a odstráň fotku.
    - Vyskúšaj prepočet porcií a over, že obrazovka nezhasína.
    - Zálohuj recepty, odinštaluj aplikáciu, nainštaluj ju znova a obnov zálohu.
-   - Počas skúšania sleduj `npx wrangler tail` a čas CPU v Cloudflare. Bezplatný plán má nízky limit CPU na jednu požiadavku.
+   - Počas skúšania sleduj `npx.cmd wrangler tail` a čas CPU v Cloudflare. Bezplatný plán má nízky limit CPU na jednu požiadavku.
    - Zapisuj si, čo AI rozpoznala zle. Podľa toho sa upraví prompt.
 5. **Verzia pre mamu** podľa install.md, sekcia 3.
 
